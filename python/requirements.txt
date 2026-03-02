@@ -1,0 +1,8 @@
+openai>=1.80.0
+anthropic>=0.52.0
+google-genai>=1.14.0
+pydantic>=2.10.0
+jsonschema>=4.23.0
+httpx>=0.28.0
+pytest>=8.3.0
+pytest-asyncio>=0.25.0

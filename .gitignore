@@ -33,3 +33,13 @@ pi-*.html
 out.html
 packages/coding-agent/binaries/
 todo.md
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+python/.venv/
+
+# Benchmark data (large files)
+benchmark/data/
