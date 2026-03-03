@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import AsyncIterator
+from dataclasses import dataclass, field
 from typing import Any
 
 from pi_ai.api_registry import stream_simple
@@ -37,6 +38,14 @@ from pi_agent.types import (
 )
 
 
+@dataclass
+class _ToolExecutionResult:
+    """Result of executing a batch of tool calls, including any steering interruption."""
+    tool_results: list[ToolResultMessage] = field(default_factory=list)
+    steering_messages: list[Message] | None = None
+    events: list[AgentEvent] = field(default_factory=list)
+
+
 async def agent_loop(
     prompts: list[Message],
     context: AgentContext,
@@ -67,6 +76,41 @@ async def agent_loop(
         yield event
 
 
+async def agent_loop_continue(
+    context: AgentContext,
+    config: AgentLoopConfig,
+) -> AsyncIterator[AgentEvent]:
+    """Continue an agent loop from the current context without adding new prompts.
+
+    Used for retries or resuming — context must already contain messages and
+    the last message must not be an assistant message.
+    """
+    if not context.messages:
+        raise ValueError("agent_loop_continue requires non-empty context.messages")
+
+    last = context.messages[-1]
+    if isinstance(last, AssistantMessage):
+        raise ValueError(
+            "agent_loop_continue: last message must not be assistant "
+            "(the LLM provider would reject it)"
+        )
+
+    current_messages = list(context.messages)
+    new_messages: list[Message] = []
+
+    yield AgentStartEvent()
+    yield TurnStartEvent()
+
+    async for event in _run_loop(
+        context=context,
+        config=config,
+        messages=current_messages,
+        new_messages=new_messages,
+        first_turn=True,
+    ):
+        yield event
+
+
 async def _run_loop(
     context: AgentContext,
     config: AgentLoopConfig,
@@ -74,50 +118,113 @@ async def _run_loop(
     new_messages: list[Message],
     first_turn: bool = True,
 ) -> AsyncIterator[AgentEvent]:
-    """Main loop: stream LLM response, execute tools, repeat."""
+    """Double-loop: outer handles follow-up, inner handles steering + tool calls."""
     tools = context.tools or []
 
+    # Outer loop — follow-up messages
     while True:
-        if not first_turn:
-            yield TurnStartEvent()
-        first_turn = False
+        has_tool_calls = True
+        pending_messages: list[Message] = []
 
-        # Stream assistant response
-        assistant_msg: AssistantMessage | None = None
-        async for event in _stream_assistant_response(context, config, messages):
-            yield event
-            if isinstance(event, MessageEndEvent) and isinstance(event.message, AssistantMessage):
-                assistant_msg = event.message
+        # Poll for initial steering messages (user may have typed while waiting)
+        if config.get_steering_messages:
+            pending_messages = await config.get_steering_messages()
 
-        if assistant_msg is None:
-            yield AgentEndEvent(messages=new_messages)
-            return
+        # Inner loop — streaming + tool execution
+        while has_tool_calls or pending_messages:
+            if not first_turn:
+                yield TurnStartEvent()
+            first_turn = False
 
-        new_messages.append(assistant_msg)
+            # Inject pending messages (steering) before the LLM call
+            if pending_messages:
+                for msg in pending_messages:
+                    messages.append(msg)
+                    new_messages.append(msg)
+                    yield MessageStartEvent(message=msg)
+                    yield MessageEndEvent(message=msg)
+                pending_messages = []
 
-        if assistant_msg.stop_reason in ("error", "aborted"):
-            yield TurnEndEvent(message=assistant_msg, tool_results=[])
-            yield AgentEndEvent(messages=new_messages)
-            return
+            # Stream assistant response
+            assistant_msg: AssistantMessage | None = None
+            async for event in _stream_assistant_response(context, config, messages):
+                yield event
+                if isinstance(event, MessageEndEvent) and isinstance(event.message, AssistantMessage):
+                    assistant_msg = event.message
 
-        # Check for tool calls
-        tool_calls = [c for c in assistant_msg.content if isinstance(c, ToolCall)]
+            if assistant_msg is None:
+                yield AgentEndEvent(messages=new_messages)
+                return
 
-        if not tool_calls:
-            yield TurnEndEvent(message=assistant_msg, tool_results=[])
-            yield AgentEndEvent(messages=new_messages)
-            return
+            new_messages.append(assistant_msg)
 
-        # Execute tool calls
-        tool_results: list[ToolResultMessage] = []
-        async for event in _execute_tool_calls(tools, assistant_msg, tool_calls):
-            yield event
-            if isinstance(event, MessageEndEvent) and isinstance(event.message, ToolResultMessage):
-                tool_results.append(event.message)
-                messages.append(event.message)
-                new_messages.append(event.message)
+            if assistant_msg.stop_reason in ("error", "aborted"):
+                yield TurnEndEvent(message=assistant_msg, tool_results=[])
+                yield AgentEndEvent(messages=new_messages)
+                return
 
-        yield TurnEndEvent(message=assistant_msg, tool_results=tool_results)
+            # Check for tool calls
+            tool_calls = [c for c in assistant_msg.content if isinstance(c, ToolCall)]
+            has_tool_calls = bool(tool_calls)
+
+            if not tool_calls:
+                yield TurnEndEvent(message=assistant_msg, tool_results=[])
+                # Poll steering after turn with no tool calls
+                if config.get_steering_messages:
+                    pending_messages = await config.get_steering_messages()
+                continue
+
+            # Execute tool calls (may be interrupted by steering)
+            exec_result = await _execute_tool_calls(tools, assistant_msg, tool_calls, config)
+
+            # Yield all collected events
+            for ev in exec_result.events:
+                yield ev
+
+            # Apply tool results to message lists
+            for tr in exec_result.tool_results:
+                messages.append(tr)
+                new_messages.append(tr)
+
+            yield TurnEndEvent(message=assistant_msg, tool_results=exec_result.tool_results)
+
+            # If steering interrupted tool execution, use those messages
+            if exec_result.steering_messages:
+                pending_messages = exec_result.steering_messages
+                has_tool_calls = True  # force inner loop to continue
+            elif config.get_steering_messages:
+                # Poll steering after tool turn
+                pending_messages = await config.get_steering_messages()
+
+        # Inner loop exited — check for follow-up messages
+        if config.get_follow_up_messages:
+            follow_up = await config.get_follow_up_messages()
+            if follow_up:
+                # Inject follow-up and loop back
+                for msg in follow_up:
+                    messages.append(msg)
+                    new_messages.append(msg)
+                # Reset first_turn so next iteration emits TurnStartEvent
+                first_turn = False
+                # Emit follow-up message events at the start of the next turn
+                # by setting them as pending in the next outer iteration
+                # Actually, we need to emit them — let the outer loop re-enter
+                # with pending messages already in the list but events not yet emitted.
+                # Simpler: yield the message events here, then continue.
+                yield TurnStartEvent()
+                for msg in follow_up:
+                    yield MessageStartEvent(message=msg)
+                    yield MessageEndEvent(message=msg)
+                # The inner loop will pick up from here; set first_turn so inner
+                # doesn't emit another TurnStartEvent on the first iteration.
+                first_turn = True
+                continue
+            # No follow-up — we're done
+            break
+        else:
+            break
+
+    yield AgentEndEvent(messages=new_messages)
 
 
 async def _stream_assistant_response(
@@ -186,20 +293,59 @@ async def _stream_assistant_response(
         yield MessageEndEvent(message=partial_message)
 
 
+def _skip_tool_call(tc: ToolCall) -> tuple[list[AgentEvent], ToolResultMessage]:
+    """Generate synthetic result + events for a skipped tool call."""
+    result = AgentToolResult(
+        content=[TextContent(text="Skipped due to queued user message.")],
+        details={},
+    )
+
+    events: list[AgentEvent] = [
+        ToolExecutionStartEvent(
+            tool_call_id=tc.id,
+            tool_name=tc.name,
+            args=tc.arguments,
+        ),
+        ToolExecutionEndEvent(
+            tool_call_id=tc.id,
+            tool_name=tc.name,
+            result=result,
+            is_error=True,
+        ),
+    ]
+
+    tool_result_msg = ToolResultMessage(
+        tool_call_id=tc.id,
+        tool_name=tc.name,
+        content=result.content,
+        details=result.details,
+        is_error=True,
+        timestamp=int(time.time() * 1000),
+    )
+
+    events.append(MessageStartEvent(message=tool_result_msg))
+    events.append(MessageEndEvent(message=tool_result_msg))
+
+    return events, tool_result_msg
+
+
 async def _execute_tool_calls(
     tools: list[AgentTool],
     assistant_message: AssistantMessage,
     tool_calls: list[ToolCall],
-) -> AsyncIterator[AgentEvent]:
-    """Execute tool calls from an assistant message."""
-    for tc in tool_calls:
+    config: AgentLoopConfig,
+) -> _ToolExecutionResult:
+    """Execute tool calls, checking for steering interruption between each."""
+    exec_result = _ToolExecutionResult()
+
+    for i, tc in enumerate(tool_calls):
         tool = next((t for t in tools if t.name == tc.name), None)
 
-        yield ToolExecutionStartEvent(
+        exec_result.events.append(ToolExecutionStartEvent(
             tool_call_id=tc.id,
             tool_name=tc.name,
             args=tc.arguments,
-        )
+        ))
 
         result: AgentToolResult
         is_error = False
@@ -216,7 +362,7 @@ async def _execute_tool_calls(
             result = await tool.execute(
                 tc.id,
                 validated_args,
-                on_update=lambda partial: None,  # Simplified: no streaming updates in benchmark
+                on_update=lambda partial: None,
             )
         except Exception as e:
             result = AgentToolResult(
@@ -225,12 +371,12 @@ async def _execute_tool_calls(
             )
             is_error = True
 
-        yield ToolExecutionEndEvent(
+        exec_result.events.append(ToolExecutionEndEvent(
             tool_call_id=tc.id,
             tool_name=tc.name,
             result=result,
             is_error=is_error,
-        )
+        ))
 
         tool_result_msg = ToolResultMessage(
             tool_call_id=tc.id,
@@ -241,5 +387,20 @@ async def _execute_tool_calls(
             timestamp=int(time.time() * 1000),
         )
 
-        yield MessageStartEvent(message=tool_result_msg)
-        yield MessageEndEvent(message=tool_result_msg)
+        exec_result.events.append(MessageStartEvent(message=tool_result_msg))
+        exec_result.events.append(MessageEndEvent(message=tool_result_msg))
+        exec_result.tool_results.append(tool_result_msg)
+
+        # Check steering after each tool (except the last)
+        if config.get_steering_messages and i < len(tool_calls) - 1:
+            steering = await config.get_steering_messages()
+            if steering:
+                # Skip remaining tool calls
+                for remaining_tc in tool_calls[i + 1:]:
+                    skip_events, skip_msg = _skip_tool_call(remaining_tc)
+                    exec_result.events.extend(skip_events)
+                    exec_result.tool_results.append(skip_msg)
+                exec_result.steering_messages = steering
+                break
+
+    return exec_result

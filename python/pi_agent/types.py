@@ -155,4 +155,6 @@ class AgentLoopConfig:
         default_factory=lambda: default_convert_to_llm,
     )
     transform_context: Callable[[list[Message]], Awaitable[list[Message]]] | None = None
+    get_steering_messages: Callable[[], Awaitable[list[Message]]] | None = None
+    get_follow_up_messages: Callable[[], Awaitable[list[Message]]] | None = None
     options: StreamOptions | None = None

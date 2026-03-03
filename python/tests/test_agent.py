@@ -22,7 +22,7 @@ from pi_ai.types import (
     UserMessage,
 )
 from pi_ai.api_registry import register_provider
-from pi_agent.agent_loop import agent_loop
+from pi_agent.agent_loop import agent_loop, agent_loop_continue
 from pi_agent.types import (
     AgentContext,
     AgentEndEvent,
@@ -225,7 +225,7 @@ async def test_custom_convert_to_llm():
         any(m.role == "user" for m in msgs)
         for msgs in called_with
     )
-    assert "AgentEndEvent" in [type(e).__name__ for e in events]
+    assert "AgentEndEvent" in [type(e).__name__ for e in events]  # custom_convert
 
 
 @pytest.mark.asyncio
@@ -257,4 +257,202 @@ async def test_transform_context():
         any(m.role == "user" for m in msgs)
         for msgs in transform_called
     )
-    assert "AgentEndEvent" in [type(e).__name__ for e in events]
+    assert "AgentEndEvent" in [type(e).__name__ for e in events]  # transform_context
+
+
+# ---------------------------------------------------------------------------
+# Mock streams for steering / follow-up / continue tests
+# ---------------------------------------------------------------------------
+
+async def mock_two_tool_calls_stream(model, context, options=None):
+    """Return 2 tool calls on first call, text on subsequent calls."""
+    has_tool_result = any(m.role == "toolResult" for m in context.messages)
+    if has_tool_result:
+        output = AssistantMessage(
+            api="mock-api", provider="mock", model="mock-model",
+            content=[TextContent(text="Processed steering.")],
+            usage=Usage(), stop_reason="stop",
+        )
+        yield StartEvent(partial=output)
+        yield DoneEvent(reason="stop", message=output)
+    else:
+        tc1 = ToolCall(id="tc1", name="tool_a", arguments={"input": "a"})
+        tc2 = ToolCall(id="tc2", name="tool_b", arguments={"input": "b"})
+        output = AssistantMessage(
+            api="mock-api", provider="mock", model="mock-model",
+            content=[tc1, tc2],
+            usage=Usage(), stop_reason="toolUse",
+        )
+        yield StartEvent(partial=output)
+        yield ToolCallStartEvent(content_index=0, partial=output)
+        yield ToolCallEndEvent(content_index=0, tool_call=tc1, partial=output)
+        yield ToolCallStartEvent(content_index=1, partial=output)
+        yield ToolCallEndEvent(content_index=1, tool_call=tc2, partial=output)
+        yield DoneEvent(reason="toolUse", message=output)
+
+
+_follow_up_llm_call_count = 0
+
+
+async def mock_follow_up_stream(model, context, options=None):
+    """Text response that increments a global call counter."""
+    global _follow_up_llm_call_count
+    _follow_up_llm_call_count += 1
+    output = AssistantMessage(
+        api="mock-api", provider="mock", model="mock-model",
+        content=[TextContent(text=f"Response {_follow_up_llm_call_count}")],
+        usage=Usage(), stop_reason="stop",
+    )
+    yield StartEvent(partial=output)
+    yield DoneEvent(reason="stop", message=output)
+
+
+# ---------------------------------------------------------------------------
+# New tests: steering, follow-up, agent_loop_continue
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_get_steering_messages():
+    """Steering interrupts tool execution — second tool is skipped."""
+    register_provider("mock-api", mock_two_tool_calls_stream)
+
+    tool_a = MockTool(name="tool_a", response="result_a")
+    tool_b = MockTool(name="tool_b", response="result_b")
+
+    steering_call_count = 0
+
+    async def steering():
+        nonlocal steering_call_count
+        steering_call_count += 1
+        # Call 1: initial poll before inner loop → nothing yet
+        # Call 2: after tool_a executes → inject steering message
+        if steering_call_count == 2:
+            return [UserMessage(content="Stop! Do something else.")]
+        return []
+
+    context = AgentContext(
+        system_prompt="test", messages=[], tools=[tool_a, tool_b],
+    )
+    config = AgentLoopConfig(
+        model=MOCK_MODEL, get_steering_messages=steering,
+    )
+
+    events = []
+    async for event in agent_loop(
+        prompts=[UserMessage(content="go")], context=context, config=config,
+    ):
+        events.append(event)
+
+    # tool_b should have been skipped (is_error=True, "Skipped" text)
+    tool_ends = [e for e in events if isinstance(e, ToolExecutionEndEvent)]
+    assert len(tool_ends) == 2  # both tools got end events
+    tool_b_end = [e for e in tool_ends if e.tool_name == "tool_b"][0]
+    assert tool_b_end.is_error is True
+
+    # The steering user message should appear in message events
+    user_msg_events = [
+        e for e in events
+        if isinstance(e, MessageEndEvent) and hasattr(e.message, "role") and e.message.role == "user"
+    ]
+    assert any("Stop" in getattr(m.message, "content", "") for m in user_msg_events)
+
+    # Agent should end successfully
+    assert any(isinstance(e, AgentEndEvent) for e in events)
+
+
+@pytest.mark.asyncio
+async def test_get_follow_up_messages():
+    """Follow-up causes a second LLM round after the first completes."""
+    global _follow_up_llm_call_count
+    _follow_up_llm_call_count = 0
+
+    register_provider("mock-api", mock_follow_up_stream)
+
+    follow_up_call_count = 0
+
+    async def follow_up():
+        nonlocal follow_up_call_count
+        follow_up_call_count += 1
+        if follow_up_call_count == 1:
+            return [UserMessage(content="One more thing.")]
+        return []
+
+    context = AgentContext(system_prompt="test", messages=[], tools=[])
+    config = AgentLoopConfig(
+        model=MOCK_MODEL, get_follow_up_messages=follow_up,
+    )
+
+    events = []
+    async for event in agent_loop(
+        prompts=[UserMessage(content="hello")], context=context, config=config,
+    ):
+        events.append(event)
+
+    # Should have made 2 LLM calls
+    assert _follow_up_llm_call_count == 2
+
+    # Both assistant responses should be in the final messages
+    end_event = [e for e in events if isinstance(e, AgentEndEvent)][0]
+    assistant_msgs = [m for m in end_event.messages if isinstance(m, AssistantMessage)]
+    assert len(assistant_msgs) == 2
+
+
+@pytest.mark.asyncio
+async def test_agent_loop_continue():
+    """agent_loop_continue resumes from existing context without adding prompts."""
+    register_provider("mock-api", mock_text_stream)
+
+    # Pre-populate context with user message + tool result (simulating prior turn)
+    existing_messages = [
+        UserMessage(content="original prompt"),
+        ToolResultMessage(
+            tool_call_id="old_tc",
+            tool_name="some_tool",
+            content=[TextContent(text="old result")],
+        ),
+    ]
+
+    context = AgentContext(
+        system_prompt="test", messages=existing_messages, tools=[],
+    )
+    config = AgentLoopConfig(model=MOCK_MODEL)
+
+    events = []
+    async for event in agent_loop_continue(context=context, config=config):
+        events.append(event)
+
+    types = [type(e).__name__ for e in events]
+    assert "AgentStartEvent" in types
+    assert "AgentEndEvent" in types
+
+    # No prompt MessageStart/End should be emitted (we didn't add prompts)
+    end_event = [e for e in events if isinstance(e, AgentEndEvent)][0]
+    # new_messages should only contain the assistant response, not the existing context
+    assert len(end_event.messages) == 1
+    assert isinstance(end_event.messages[0], AssistantMessage)
+
+
+@pytest.mark.asyncio
+async def test_agent_loop_continue_rejects_empty():
+    """agent_loop_continue raises on empty context."""
+    context = AgentContext(system_prompt="test", messages=[], tools=[])
+    config = AgentLoopConfig(model=MOCK_MODEL)
+
+    with pytest.raises(ValueError, match="non-empty"):
+        async for _ in agent_loop_continue(context=context, config=config):
+            pass
+
+
+@pytest.mark.asyncio
+async def test_agent_loop_continue_rejects_assistant_last():
+    """agent_loop_continue raises when last message is assistant."""
+    context = AgentContext(
+        system_prompt="test",
+        messages=[AssistantMessage(content=[TextContent(text="hi")])],
+        tools=[],
+    )
+    config = AgentLoopConfig(model=MOCK_MODEL)
+
+    with pytest.raises(ValueError, match="must not be assistant"):
+        async for _ in agent_loop_continue(context=context, config=config):
+            pass

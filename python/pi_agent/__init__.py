@@ -1,5 +1,5 @@
 from pi_agent.agent import Agent
-from pi_agent.agent_loop import agent_loop
+from pi_agent.agent_loop import agent_loop, agent_loop_continue
 from pi_agent.types import (
     AgentContext,
     AgentEndEvent,
