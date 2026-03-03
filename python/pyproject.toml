@@ -22,7 +22,7 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["pi_ai*", "pi_agent*", "pi_tools*", "benchmark*"]
+include = ["pi_ai*", "pi_agent*", "pi_tools*", "pi_session*", "pi_coding_agent*", "benchmark*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
