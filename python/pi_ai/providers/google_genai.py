@@ -20,7 +20,10 @@ from google.genai.types import (
     ToolConfig,
 )
 
+import re
+
 from pi_ai.models import calculate_cost
+from pi_ai.transform_messages import transform_messages
 from pi_ai.types import (
     AssistantMessage,
     AssistantMessageEvent,
@@ -50,11 +53,18 @@ from pi_ai.types import (
 _tool_call_counter = 0
 
 
+def _normalize_tool_call_id(id_: str, model: Model, source: AssistantMessage) -> str:
+    """Google APIs require tool call IDs matching [a-zA-Z0-9_-] (max 64 chars)."""
+    return re.sub(r"[^a-zA-Z0-9_-]", "_", id_)[:64]
+
+
 def _convert_messages(model: Model, context: Context) -> list[Content]:
     """Convert Context messages to Google Generative AI Content format."""
     contents: list[Content] = []
 
-    for msg in context.messages:
+    transformed = transform_messages(context.messages, model, _normalize_tool_call_id)
+
+    for msg in transformed:
         if msg.role == "user":
             parts: list[Part] = []
             if isinstance(msg.content, str):

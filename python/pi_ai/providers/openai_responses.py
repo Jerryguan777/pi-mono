@@ -11,6 +11,7 @@ from typing import Any
 import openai
 
 from pi_ai.models import calculate_cost
+from pi_ai.transform_messages import transform_messages
 from pi_ai.types import (
     AssistantMessage,
     AssistantMessageEvent,
@@ -63,7 +64,9 @@ def _convert_messages(model: Model, context: Context) -> list[dict[str, Any]]:
         role = "developer" if model.reasoning else "system"
         messages.append({"role": role, "content": context.system_prompt})
 
-    for msg in context.messages:
+    transformed = transform_messages(context.messages, model)
+
+    for msg in transformed:
         if msg.role == "user":
             if isinstance(msg.content, str):
                 messages.append({

@@ -10,7 +10,10 @@ from typing import Any
 
 import anthropic
 
+import re
+
 from pi_ai.models import calculate_cost
+from pi_ai.transform_messages import transform_messages
 from pi_ai.types import (
     AssistantMessage,
     AssistantMessageEvent,
@@ -52,11 +55,18 @@ def _parse_streaming_json(s: str) -> dict:
         return {}
 
 
+def _normalize_tool_call_id(id_: str, model: Model, source: AssistantMessage) -> str:
+    """Anthropic requires tool call IDs matching ^[a-zA-Z0-9_-]+$ (max 64 chars)."""
+    return re.sub(r"[^a-zA-Z0-9_-]", "_", id_)[:64]
+
+
 def _convert_messages(context: Context, model: Model) -> list[dict[str, Any]]:
     """Convert Context messages to Anthropic MessageParam format."""
     params: list[dict[str, Any]] = []
 
-    for i, msg in enumerate(context.messages):
+    transformed = transform_messages(context.messages, model, _normalize_tool_call_id)
+
+    for i, msg in enumerate(transformed):
         if msg.role == "user":
             if isinstance(msg.content, str):
                 if msg.content.strip():
