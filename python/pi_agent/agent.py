@@ -57,7 +57,7 @@ class Agent:
         self.is_streaming = False
         self.error: str | None = None
         self._listeners: list[Callable[[AgentEvent], None]] = []
-        self._abort = False
+        self._abort_signal: asyncio.Event | None = None
         self._running_task: asyncio.Task | None = None
         self._api_key = api_key
         self._reasoning = reasoning
@@ -101,20 +101,21 @@ class Agent:
 
     def abort(self) -> None:
         """Abort the current operation."""
-        self._abort = True
+        if self._abort_signal:
+            self._abort_signal.set()
 
     def reset(self) -> None:
         """Reset agent state."""
         self.messages = []
         self.is_streaming = False
         self.error = None
-        self._abort = False
+        self._abort_signal = None
 
     async def _run_loop(self, prompt_messages: list[Message]) -> None:
         """Run the agent loop with given prompt messages."""
         self.is_streaming = True
         self.error = None
-        self._abort = False
+        self._abort_signal = asyncio.Event()
 
         config = AgentLoopConfig(
             model=self.model,
@@ -124,6 +125,7 @@ class Agent:
                 api_key=self._api_key,
                 reasoning=self._reasoning,
             ),
+            abort_signal=self._abort_signal,
         )
         context = AgentContext(
             system_prompt=self.system_prompt,
@@ -137,7 +139,7 @@ class Agent:
                 context=context,
                 config=config,
             ):
-                if self._abort:
+                if self._abort_signal.is_set():
                     break
 
                 # Update internal state
@@ -169,4 +171,4 @@ class Agent:
             self._emit(AgentEndEvent(messages=[error_msg]))
         finally:
             self.is_streaming = False
-            self._abort = False
+            self._abort_signal = None

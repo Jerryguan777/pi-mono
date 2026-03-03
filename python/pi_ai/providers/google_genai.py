@@ -209,6 +209,11 @@ async def stream(
         current_block: TextContent | ThinkingContent | None = None
 
         for chunk in google_stream:
+            if options.abort_signal and options.abort_signal.is_set():
+                output.stop_reason = "aborted"
+                yield DoneEvent(reason="aborted", message=output)
+                return
+
             candidate = chunk.candidates[0] if chunk.candidates else None
             if candidate and candidate.content and candidate.content.parts:
                 for part in candidate.content.parts:
@@ -318,9 +323,14 @@ async def stream(
             else:
                 yield ThinkingEndEvent(content_index=idx, content=current_block.thinking, partial=output)
 
+        if options.abort_signal and options.abort_signal.is_set():
+            output.stop_reason = "aborted"
+            yield DoneEvent(reason="aborted", message=output)
+            return
+
         yield DoneEvent(reason=output.stop_reason, message=output)
 
     except Exception as e:
-        output.stop_reason = "error"
+        output.stop_reason = "aborted" if (options.abort_signal and options.abort_signal.is_set()) else "error"
         output.error_message = str(e)
         yield ErrorEvent(reason="error", error=output)

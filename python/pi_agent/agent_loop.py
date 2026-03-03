@@ -132,6 +132,10 @@ async def _run_loop(
 
         # Inner loop — streaming + tool execution
         while has_tool_calls or pending_messages:
+            if config.abort_signal and config.abort_signal.is_set():
+                yield AgentEndEvent(messages=new_messages)
+                return
+
             if not first_turn:
                 yield TurnStartEvent()
             first_turn = False
@@ -257,10 +261,23 @@ async def _stream_assistant_response(
         tools=ai_tools,
     )
 
+    stream_options = config.options or StreamOptions()
+    if config.abort_signal:
+        stream_options = StreamOptions(
+            temperature=stream_options.temperature,
+            max_tokens=stream_options.max_tokens,
+            api_key=stream_options.api_key,
+            reasoning=stream_options.reasoning,
+            abort_signal=config.abort_signal,
+        )
+
     partial_message: AssistantMessage | None = None
     added_partial = False
 
-    async for event in stream_simple(config.model, llm_context, config.options):
+    async for event in stream_simple(config.model, llm_context, stream_options):
+        if config.abort_signal and config.abort_signal.is_set():
+            break
+
         if event.type == "start":
             partial_message = event.partial
             messages.append(partial_message)
@@ -339,6 +356,14 @@ async def _execute_tool_calls(
     exec_result = _ToolExecutionResult()
 
     for i, tc in enumerate(tool_calls):
+        # Abort check before each tool
+        if config.abort_signal and config.abort_signal.is_set():
+            for remaining_tc in tool_calls[i:]:
+                skip_events, skip_msg = _skip_tool_call(remaining_tc)
+                exec_result.events.extend(skip_events)
+                exec_result.tool_results.append(skip_msg)
+            break
+
         tool = next((t for t in tools if t.name == tc.name), None)
 
         exec_result.events.append(ToolExecutionStartEvent(
@@ -363,6 +388,7 @@ async def _execute_tool_calls(
                 tc.id,
                 validated_args,
                 on_update=lambda partial: None,
+                abort_signal=config.abort_signal,
             )
         except Exception as e:
             result = AgentToolResult(

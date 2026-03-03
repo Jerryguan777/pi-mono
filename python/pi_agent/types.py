@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal, Union
@@ -44,6 +45,7 @@ class AgentTool:
         tool_call_id: str,
         params: dict[str, Any],
         on_update: AgentToolUpdateCallback | None = None,
+        abort_signal: asyncio.Event | None = None,
     ) -> AgentToolResult:
         raise NotImplementedError
 
@@ -158,3 +160,4 @@ class AgentLoopConfig:
     get_steering_messages: Callable[[], Awaitable[list[Message]]] | None = None
     get_follow_up_messages: Callable[[], Awaitable[list[Message]]] | None = None
     options: StreamOptions | None = None
+    abort_signal: asyncio.Event | None = None

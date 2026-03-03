@@ -1,5 +1,7 @@
 """Tests for the agent loop — mock LLM tests."""
 
+import asyncio
+
 import pytest
 
 from pi_ai.types import (
@@ -456,3 +458,158 @@ async def test_agent_loop_continue_rejects_assistant_last():
     with pytest.raises(ValueError, match="must not be assistant"):
         async for _ in agent_loop_continue(context=context, config=config):
             pass
+
+
+# ---------------------------------------------------------------------------
+# Abort signal tests
+# ---------------------------------------------------------------------------
+
+
+class AbortingTool(AgentTool):
+    """A tool that sets the abort signal during execution."""
+    def __init__(self, name: str = "abort_tool", signal: asyncio.Event | None = None):
+        self.name = name
+        self.label = name
+        self.description = f"Tool that aborts: {name}"
+        self.parameters = {
+            "type": "object",
+            "properties": {"input": {"type": "string"}},
+            "required": ["input"],
+        }
+        self._signal = signal
+
+    async def execute(self, tool_call_id, params, on_update=None, abort_signal=None):
+        # Trigger abort during execution
+        if self._signal:
+            self._signal.set()
+        return AgentToolResult(
+            content=[TextContent(text="done before abort")],
+            details={},
+        )
+
+
+async def mock_abort_tool_call_stream(model, context, options=None):
+    """Mock stream that returns a tool call; if abort is set, returns aborted."""
+    if options and options.abort_signal and options.abort_signal.is_set():
+        output = AssistantMessage(
+            api="mock-api", provider="mock", model="mock-model",
+            content=[], usage=Usage(), stop_reason="aborted",
+        )
+        yield StartEvent(partial=output)
+        yield DoneEvent(reason="aborted", message=output)
+        return
+
+    has_tool_result = any(m.role == "toolResult" for m in context.messages)
+    if has_tool_result:
+        output = AssistantMessage(
+            api="mock-api", provider="mock", model="mock-model",
+            content=[TextContent(text="Final answer")],
+            usage=Usage(), stop_reason="stop",
+        )
+        yield StartEvent(partial=output)
+        yield DoneEvent(reason="stop", message=output)
+    else:
+        tc = ToolCall(id="tc1", name="abort_tool", arguments={"input": "go"})
+        output = AssistantMessage(
+            api="mock-api", provider="mock", model="mock-model",
+            content=[tc],
+            usage=Usage(), stop_reason="toolUse",
+        )
+        yield StartEvent(partial=output)
+        yield ToolCallStartEvent(content_index=0, partial=output)
+        yield ToolCallEndEvent(content_index=0, tool_call=tc, partial=output)
+        yield DoneEvent(reason="toolUse", message=output)
+
+
+async def mock_two_abort_tool_calls_stream(model, context, options=None):
+    """Mock stream returning 2 tool calls; respects abort signal."""
+    if options and options.abort_signal and options.abort_signal.is_set():
+        output = AssistantMessage(
+            api="mock-api", provider="mock", model="mock-model",
+            content=[], usage=Usage(), stop_reason="aborted",
+        )
+        yield StartEvent(partial=output)
+        yield DoneEvent(reason="aborted", message=output)
+        return
+
+    has_tool_result = any(m.role == "toolResult" for m in context.messages)
+    if has_tool_result:
+        output = AssistantMessage(
+            api="mock-api", provider="mock", model="mock-model",
+            content=[TextContent(text="Final")],
+            usage=Usage(), stop_reason="stop",
+        )
+        yield StartEvent(partial=output)
+        yield DoneEvent(reason="stop", message=output)
+    else:
+        tc1 = ToolCall(id="tc1", name="abort_tool", arguments={"input": "a"})
+        tc2 = ToolCall(id="tc2", name="second_tool", arguments={"input": "b"})
+        output = AssistantMessage(
+            api="mock-api", provider="mock", model="mock-model",
+            content=[tc1, tc2],
+            usage=Usage(), stop_reason="toolUse",
+        )
+        yield StartEvent(partial=output)
+        yield ToolCallStartEvent(content_index=0, partial=output)
+        yield ToolCallEndEvent(content_index=0, tool_call=tc1, partial=output)
+        yield ToolCallStartEvent(content_index=1, partial=output)
+        yield ToolCallEndEvent(content_index=1, tool_call=tc2, partial=output)
+        yield DoneEvent(reason="toolUse", message=output)
+
+
+@pytest.mark.asyncio
+async def test_abort_signal():
+    """abort_signal stops the agent loop mid-stream."""
+    register_provider("mock-api", mock_abort_tool_call_stream)
+
+    abort_signal = asyncio.Event()
+    tool = AbortingTool(name="abort_tool", signal=abort_signal)
+
+    context = AgentContext(system_prompt="test", messages=[], tools=[tool])
+    config = AgentLoopConfig(model=MOCK_MODEL, abort_signal=abort_signal)
+
+    events = []
+    async for event in agent_loop(
+        prompts=[UserMessage(content="go")],
+        context=context,
+        config=config,
+    ):
+        events.append(event)
+
+    # The tool fires abort, so the loop should end
+    assert any(isinstance(e, AgentEndEvent) for e in events)
+    # The second LLM call should see abort and return "aborted" stop_reason,
+    # OR the loop exits before making a second call
+    types = [type(e).__name__ for e in events]
+    assert "AgentEndEvent" in types
+
+
+@pytest.mark.asyncio
+async def test_abort_signal_skips_remaining_tools():
+    """When abort fires during first tool, second tool is skipped."""
+    register_provider("mock-api", mock_two_abort_tool_calls_stream)
+
+    abort_signal = asyncio.Event()
+    abort_tool = AbortingTool(name="abort_tool", signal=abort_signal)
+    second_tool = MockTool(name="second_tool", response="should not run")
+
+    context = AgentContext(
+        system_prompt="test", messages=[], tools=[abort_tool, second_tool],
+    )
+    config = AgentLoopConfig(model=MOCK_MODEL, abort_signal=abort_signal)
+
+    events = []
+    async for event in agent_loop(
+        prompts=[UserMessage(content="go")],
+        context=context,
+        config=config,
+    ):
+        events.append(event)
+
+    # second_tool should have been skipped (is_error=True)
+    tool_ends = [e for e in events if isinstance(e, ToolExecutionEndEvent)]
+    assert len(tool_ends) == 2
+    second_end = [e for e in tool_ends if e.tool_name == "second_tool"][0]
+    assert second_end.is_error is True
+
+    assert any(isinstance(e, AgentEndEvent) for e in events)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
 from dataclasses import dataclass, field
 from typing import Any, Literal, Union
@@ -269,3 +270,4 @@ class StreamOptions:
     max_tokens: int | None = None
     api_key: str | None = None
     reasoning: ThinkingLevel | None = None
+    abort_signal: asyncio.Event | None = None  # set() = abort

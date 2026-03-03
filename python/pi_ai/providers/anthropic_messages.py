@@ -235,6 +235,11 @@ async def stream(
 
         async with anthropic_stream as stream_ctx:
             async for event in stream_ctx:
+                if options.abort_signal and options.abort_signal.is_set():
+                    output.stop_reason = "aborted"
+                    yield DoneEvent(reason="aborted", message=output)
+                    return
+
                 if event.type == "message_start":
                     msg = event.message
                     output.usage.input = msg.usage.input_tokens or 0
@@ -351,9 +356,14 @@ async def stream(
                     )
                     calculate_cost(model, output.usage)
 
+        if options.abort_signal and options.abort_signal.is_set():
+            output.stop_reason = "aborted"
+            yield DoneEvent(reason="aborted", message=output)
+            return
+
         yield DoneEvent(reason=output.stop_reason, message=output)
 
     except Exception as e:
-        output.stop_reason = "error"
+        output.stop_reason = "aborted" if (options.abort_signal and options.abort_signal.is_set()) else "error"
         output.error_message = str(e)
         yield ErrorEvent(reason="error", error=output)
