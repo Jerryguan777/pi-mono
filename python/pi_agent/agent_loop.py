@@ -20,8 +20,10 @@ from pi_ai.types import (
 from pi_ai.validation import validate_tool_arguments
 
 from pi_agent.types import (
+    AgentContext,
     AgentEndEvent,
     AgentEvent,
+    AgentLoopConfig,
     AgentStartEvent,
     AgentTool,
     AgentToolResult,
@@ -37,11 +39,8 @@ from pi_agent.types import (
 
 async def agent_loop(
     prompts: list[Message],
-    system_prompt: str,
-    messages: list[Message],
-    tools: list[AgentTool],
-    model: Model,
-    options: StreamOptions | None = None,
+    context: AgentContext,
+    config: AgentLoopConfig,
 ) -> AsyncIterator[AgentEvent]:
     """Start an agent loop with prompt messages.
 
@@ -49,7 +48,7 @@ async def agent_loop(
     The agent loops: LLM call → tool execution → repeat until no more tool calls.
     """
     new_messages: list[Message] = list(prompts)
-    current_messages = list(messages) + list(prompts)
+    current_messages = list(context.messages) + list(prompts)
 
     yield AgentStartEvent()
     yield TurnStartEvent()
@@ -59,27 +58,24 @@ async def agent_loop(
         yield MessageEndEvent(message=prompt)
 
     async for event in _run_loop(
-        system_prompt=system_prompt,
+        context=context,
+        config=config,
         messages=current_messages,
         new_messages=new_messages,
-        tools=tools,
-        model=model,
-        options=options,
         first_turn=True,
     ):
         yield event
 
 
 async def _run_loop(
-    system_prompt: str,
+    context: AgentContext,
+    config: AgentLoopConfig,
     messages: list[Message],
     new_messages: list[Message],
-    tools: list[AgentTool],
-    model: Model,
-    options: StreamOptions | None,
     first_turn: bool = True,
 ) -> AsyncIterator[AgentEvent]:
     """Main loop: stream LLM response, execute tools, repeat."""
+    tools = context.tools or []
 
     while True:
         if not first_turn:
@@ -88,7 +84,7 @@ async def _run_loop(
 
         # Stream assistant response
         assistant_msg: AssistantMessage | None = None
-        async for event in _stream_assistant_response(system_prompt, messages, tools, model, options):
+        async for event in _stream_assistant_response(context, config, messages):
             yield event
             if isinstance(event, MessageEndEvent) and isinstance(event.message, AssistantMessage):
                 assistant_msg = event.message
@@ -125,14 +121,14 @@ async def _run_loop(
 
 
 async def _stream_assistant_response(
-    system_prompt: str,
+    context: AgentContext,
+    config: AgentLoopConfig,
     messages: list[Message],
-    tools: list[AgentTool],
-    model: Model,
-    options: StreamOptions | None,
 ) -> AsyncIterator[AgentEvent]:
     """Stream an assistant response from the LLM."""
     from pi_ai.types import Tool as AiTool
+
+    tools = context.tools or []
 
     # Convert AgentTools to AI Tools for context
     ai_tools = [
@@ -140,11 +136,16 @@ async def _stream_assistant_response(
         for t in tools
     ] if tools else None
 
-    # Filter messages to LLM-compatible types
-    llm_messages = [m for m in messages if m.role in ("user", "assistant", "toolResult")]
+    # Apply transform_context hook (if provided)
+    ctx_messages = messages
+    if config.transform_context:
+        ctx_messages = await config.transform_context(list(messages))
 
-    context = Context(
-        system_prompt=system_prompt,
+    # Apply convert_to_llm hook (always)
+    llm_messages = config.convert_to_llm(ctx_messages)
+
+    llm_context = Context(
+        system_prompt=context.system_prompt,
         messages=llm_messages,
         tools=ai_tools,
     )
@@ -152,7 +153,7 @@ async def _stream_assistant_response(
     partial_message: AssistantMessage | None = None
     added_partial = False
 
-    async for event in stream_simple(model, context, options):
+    async for event in stream_simple(config.model, llm_context, config.options):
         if event.type == "start":
             partial_message = event.partial
             messages.append(partial_message)

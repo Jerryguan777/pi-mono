@@ -24,7 +24,9 @@ from pi_ai.types import (
 from pi_ai.api_registry import register_provider
 from pi_agent.agent_loop import agent_loop
 from pi_agent.types import (
+    AgentContext,
     AgentEndEvent,
+    AgentLoopConfig,
     AgentStartEvent,
     AgentTool,
     AgentToolResult,
@@ -34,6 +36,7 @@ from pi_agent.types import (
     ToolExecutionStartEvent,
     TurnEndEvent,
     TurnStartEvent,
+    default_convert_to_llm,
 )
 
 
@@ -118,13 +121,14 @@ async def test_agent_loop_text_response():
     """Test agent loop with a simple text response."""
     register_provider("mock-api", mock_text_stream)
 
+    context = AgentContext(system_prompt="You are helpful.", messages=[], tools=[])
+    config = AgentLoopConfig(model=MOCK_MODEL)
+
     events = []
     async for event in agent_loop(
         prompts=[UserMessage(content="hi")],
-        system_prompt="You are helpful.",
-        messages=[],
-        tools=[],
-        model=MOCK_MODEL,
+        context=context,
+        config=config,
     ):
         events.append(event)
 
@@ -144,13 +148,14 @@ async def test_agent_loop_tool_execution():
     register_provider("mock-api", mock_tool_call_stream)
 
     tool = MockTool()
+    context = AgentContext(system_prompt="You are helpful.", messages=[], tools=[tool])
+    config = AgentLoopConfig(model=MOCK_MODEL)
+
     events = []
     async for event in agent_loop(
         prompts=[UserMessage(content="use the tool")],
-        system_prompt="You are helpful.",
-        messages=[],
-        tools=[tool],
-        model=MOCK_MODEL,
+        context=context,
+        config=config,
     ):
         events.append(event)
 
@@ -175,13 +180,14 @@ async def test_agent_loop_tool_not_found():
     """Test agent loop when tool is not found."""
     register_provider("mock-api", mock_tool_call_stream)
 
+    context = AgentContext(system_prompt="You are helpful.", messages=[], tools=[])
+    config = AgentLoopConfig(model=MOCK_MODEL)
+
     events = []
     async for event in agent_loop(
         prompts=[UserMessage(content="use the tool")],
-        system_prompt="You are helpful.",
-        messages=[],
-        tools=[],  # No tools registered
-        model=MOCK_MODEL,
+        context=context,
+        config=config,
     ):
         events.append(event)
 
@@ -189,3 +195,66 @@ async def test_agent_loop_tool_not_found():
     tool_ends = [e for e in events if isinstance(e, ToolExecutionEndEvent)]
     assert len(tool_ends) == 1
     assert tool_ends[0].is_error is True
+
+
+@pytest.mark.asyncio
+async def test_custom_convert_to_llm():
+    """Test that a custom convert_to_llm function is called."""
+    register_provider("mock-api", mock_text_stream)
+
+    called_with: list[list] = []
+
+    def custom_convert(messages):
+        called_with.append(list(messages))
+        return default_convert_to_llm(messages)
+
+    context = AgentContext(system_prompt="You are helpful.", messages=[], tools=[])
+    config = AgentLoopConfig(model=MOCK_MODEL, convert_to_llm=custom_convert)
+
+    events = []
+    async for event in agent_loop(
+        prompts=[UserMessage(content="hi")],
+        context=context,
+        config=config,
+    ):
+        events.append(event)
+
+    assert len(called_with) >= 1
+    # The convert function should have received messages including the user prompt
+    assert any(
+        any(m.role == "user" for m in msgs)
+        for msgs in called_with
+    )
+    assert "AgentEndEvent" in [type(e).__name__ for e in events]
+
+
+@pytest.mark.asyncio
+async def test_transform_context():
+    """Test that transform_context modifies messages before LLM call."""
+    register_provider("mock-api", mock_text_stream)
+
+    transform_called: list[list] = []
+
+    async def custom_transform(messages):
+        transform_called.append(list(messages))
+        # Pass through unchanged
+        return messages
+
+    context = AgentContext(system_prompt="You are helpful.", messages=[], tools=[])
+    config = AgentLoopConfig(model=MOCK_MODEL, transform_context=custom_transform)
+
+    events = []
+    async for event in agent_loop(
+        prompts=[UserMessage(content="hi")],
+        context=context,
+        config=config,
+    ):
+        events.append(event)
+
+    assert len(transform_called) >= 1
+    # transform_context should have received messages including the user prompt
+    assert any(
+        any(m.role == "user" for m in msgs)
+        for msgs in transform_called
+    )
+    assert "AgentEndEvent" in [type(e).__name__ for e in events]

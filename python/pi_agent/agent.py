@@ -22,8 +22,10 @@ from pi_ai.types import (
 
 from pi_agent.agent_loop import agent_loop
 from pi_agent.types import (
+    AgentContext,
     AgentEndEvent,
     AgentEvent,
+    AgentLoopConfig,
     AgentTool,
     MessageEndEvent,
     MessageStartEvent,
@@ -31,6 +33,7 @@ from pi_agent.types import (
     ToolExecutionEndEvent,
     ToolExecutionStartEvent,
     TurnEndEvent,
+    default_convert_to_llm,
 )
 
 
@@ -44,6 +47,8 @@ class Agent:
         tools: list[AgentTool] | None = None,
         api_key: str | None = None,
         reasoning: str | None = None,
+        convert_to_llm: Callable | None = None,
+        transform_context: Callable | None = None,
     ):
         self.model = model
         self.system_prompt = system_prompt
@@ -56,6 +61,8 @@ class Agent:
         self._running_task: asyncio.Task | None = None
         self._api_key = api_key
         self._reasoning = reasoning
+        self._convert_to_llm = convert_to_llm
+        self._transform_context = transform_context
 
     def subscribe(self, fn: Callable[[AgentEvent], None]) -> Callable[[], None]:
         """Subscribe to agent events. Returns unsubscribe function."""
@@ -109,19 +116,26 @@ class Agent:
         self.error = None
         self._abort = False
 
-        options = StreamOptions(
-            api_key=self._api_key,
-            reasoning=self._reasoning,
+        config = AgentLoopConfig(
+            model=self.model,
+            convert_to_llm=self._convert_to_llm or default_convert_to_llm,
+            transform_context=self._transform_context,
+            options=StreamOptions(
+                api_key=self._api_key,
+                reasoning=self._reasoning,
+            ),
+        )
+        context = AgentContext(
+            system_prompt=self.system_prompt,
+            messages=list(self.messages),
+            tools=self.tools,
         )
 
         try:
             async for event in agent_loop(
                 prompts=prompt_messages,
-                system_prompt=self.system_prompt,
-                messages=list(self.messages),
-                tools=self.tools,
-                model=self.model,
-                options=options,
+                context=context,
+                config=config,
             ):
                 if self._abort:
                     break

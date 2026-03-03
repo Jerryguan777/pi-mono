@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Coroutine, Literal, Protocol, Union
+from typing import Any, Literal, Union
 
 from pi_ai.types import (
     AssistantMessage,
     AssistantMessageEvent,
     ImageContent,
     Message,
+    Model,
+    StreamOptions,
     TextContent,
     Tool,
     ToolCall,
@@ -126,3 +129,30 @@ AgentEvent = Union[
     ToolExecutionUpdateEvent,
     ToolExecutionEndEvent,
 ]
+
+
+# --- Agent context & config ---
+
+
+def default_convert_to_llm(messages: list[Message]) -> list[Message]:
+    """Default: keep only LLM-compatible messages (user, assistant, toolResult)."""
+    return [m for m in messages if m.role in ("user", "assistant", "toolResult")]
+
+
+@dataclass
+class AgentContext:
+    """Agent conversation context."""
+    system_prompt: str = ""
+    messages: list[Message] = field(default_factory=list)
+    tools: list[AgentTool] | None = None
+
+
+@dataclass
+class AgentLoopConfig:
+    """Configuration for the agent loop."""
+    model: Model
+    convert_to_llm: Callable[[list[Message]], list[Message]] = field(
+        default_factory=lambda: default_convert_to_llm,
+    )
+    transform_context: Callable[[list[Message]], Awaitable[list[Message]]] | None = None
+    options: StreamOptions | None = None

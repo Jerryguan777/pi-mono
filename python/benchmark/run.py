@@ -21,7 +21,9 @@ from pi_ai.models import get_model
 from pi_ai.types import StreamOptions, TextContent, ThinkingContent, ToolCall, UserMessage
 from pi_agent.agent_loop import agent_loop
 from pi_agent.types import (
+    AgentContext,
     AgentEndEvent,
+    AgentLoopConfig,
     AgentTool,
     MessageEndEvent,
     ToolExecutionEndEvent,
@@ -235,15 +237,19 @@ async def run_task(
             all_messages = []
             turn_num = 0
 
+            context = AgentContext(
+                system_prompt=SYSTEM_PROMPT,
+                messages=[],
+                tools=tools,
+            )
+            config = AgentLoopConfig(model=model, options=options)
+
             async def run_agent():
                 nonlocal all_messages, turn_num
                 async for event in agent_loop(
                     prompts=[user_msg],
-                    system_prompt=SYSTEM_PROMPT,
-                    messages=[],
-                    tools=tools,
-                    model=model,
-                    options=options,
+                    context=context,
+                    config=config,
                 ):
                     if isinstance(event, TurnStartEvent):
                         turn_num += 1
