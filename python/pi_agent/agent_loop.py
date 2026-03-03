@@ -274,7 +274,8 @@ async def _stream_assistant_response(
     partial_message: AssistantMessage | None = None
     added_partial = False
 
-    async for event in stream_simple(config.model, llm_context, stream_options):
+    stream_function = config.stream_fn or stream_simple
+    async for event in stream_function(config.model, llm_context, stream_options):
         if config.abort_signal and config.abort_signal.is_set():
             break
 

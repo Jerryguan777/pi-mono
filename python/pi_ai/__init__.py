@@ -1,6 +1,6 @@
 """pi_ai — Unified LLM streaming API for OpenAI, Anthropic, and Google."""
 
-from pi_ai.api_registry import register_default_providers, stream_simple
+from pi_ai.api_registry import StreamFn, register_default_providers, stream_simple
 from pi_ai.models import calculate_cost, get_model
 from pi_ai.types import (
     AssistantMessage,

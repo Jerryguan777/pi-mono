@@ -7,6 +7,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal, Union
 
+from pi_ai.api_registry import StreamFn
 from pi_ai.types import (
     AssistantMessage,
     AssistantMessageEvent,
@@ -161,3 +162,4 @@ class AgentLoopConfig:
     get_follow_up_messages: Callable[[], Awaitable[list[Message]]] | None = None
     options: StreamOptions | None = None
     abort_signal: asyncio.Event | None = None
+    stream_fn: StreamFn | None = None

@@ -24,6 +24,7 @@ from pi_ai.types import (
     UserMessage,
 )
 from pi_ai.api_registry import register_provider
+from pi_agent.agent import Agent
 from pi_agent.agent_loop import agent_loop, agent_loop_continue
 from pi_agent.types import (
     AgentContext,
@@ -613,3 +614,279 @@ async def test_abort_signal_skips_remaining_tools():
     assert second_end.is_error is True
 
     assert any(isinstance(e, AgentEndEvent) for e in events)
+
+
+# ---------------------------------------------------------------------------
+# P0: StreamFn injection tests
+# ---------------------------------------------------------------------------
+
+_custom_stream_call_count = 0
+
+
+async def custom_mock_stream(model, context, options=None):
+    """A custom stream function to verify stream_fn injection works."""
+    global _custom_stream_call_count
+    _custom_stream_call_count += 1
+    output = AssistantMessage(
+        api="custom-api", provider="custom", model="custom-model",
+        content=[TextContent(text="Custom stream!")],
+        usage=Usage(), stop_reason="stop",
+    )
+    yield StartEvent(partial=output)
+    yield DoneEvent(reason="stop", message=output)
+
+
+@pytest.mark.asyncio
+async def test_stream_fn_injection():
+    """stream_fn in AgentLoopConfig overrides the default stream_simple."""
+    global _custom_stream_call_count
+    _custom_stream_call_count = 0
+
+    context = AgentContext(system_prompt="test", messages=[], tools=[])
+    config = AgentLoopConfig(model=MOCK_MODEL, stream_fn=custom_mock_stream)
+
+    events = []
+    async for event in agent_loop(
+        prompts=[UserMessage(content="hi")],
+        context=context,
+        config=config,
+    ):
+        events.append(event)
+
+    assert _custom_stream_call_count == 1
+    # The response should come from our custom stream, not mock-api
+    end_msgs = [e for e in events if isinstance(e, MessageEndEvent)
+                and isinstance(e.message, AssistantMessage)]
+    assert len(end_msgs) >= 1
+    assert end_msgs[-1].message.api == "custom-api"
+
+
+# ---------------------------------------------------------------------------
+# P0: Agent class — steer, follow_up, continue_, wait_for_idle
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_agent_steer():
+    """Agent.steer() injects a message mid-run that the loop picks up."""
+    register_provider("mock-api", mock_tool_call_stream)
+
+    tool = MockTool()
+    agent = Agent(model=MOCK_MODEL, system_prompt="test", tools=[tool])
+
+    events: list = []
+    agent.subscribe(lambda e: events.append(e))
+
+    # Queue a steering message before prompt — it will be picked up
+    # during the tool execution turn
+    agent.steer(UserMessage(content="Actually, stop."))
+
+    await agent.prompt("use the tool")
+
+    # The steering message should appear in agent's messages
+    user_msgs = [m for m in agent.messages if isinstance(m, UserMessage)]
+    steering = [m for m in user_msgs if "stop" in str(m.content).lower()]
+    assert len(steering) >= 1
+
+
+@pytest.mark.asyncio
+async def test_agent_follow_up():
+    """Agent.follow_up() triggers a second round after the first completes."""
+    global _follow_up_llm_call_count
+    _follow_up_llm_call_count = 0
+
+    register_provider("mock-api", mock_follow_up_stream)
+
+    agent = Agent(model=MOCK_MODEL, system_prompt="test")
+
+    # Queue a follow-up before starting
+    agent.follow_up(UserMessage(content="One more thing."))
+
+    await agent.prompt("hello")
+
+    # Should have 2 LLM calls (original + follow-up)
+    assert _follow_up_llm_call_count == 2
+    assistant_msgs = [m for m in agent.messages if isinstance(m, AssistantMessage)]
+    assert len(assistant_msgs) == 2
+
+
+@pytest.mark.asyncio
+async def test_agent_follow_up_mode_all():
+    """follow_up_mode='all' delivers all follow-up messages at once."""
+    global _follow_up_llm_call_count
+    _follow_up_llm_call_count = 0
+
+    register_provider("mock-api", mock_follow_up_stream)
+
+    agent = Agent(model=MOCK_MODEL, system_prompt="test", follow_up_mode="all")
+    agent.follow_up(UserMessage(content="Follow 1"))
+    agent.follow_up(UserMessage(content="Follow 2"))
+
+    await agent.prompt("hello")
+
+    # Both follow-ups should be delivered in one round, so 2 LLM calls total
+    assert _follow_up_llm_call_count == 2
+    # Both follow-up messages should be in the conversation
+    user_msgs = [m for m in agent.messages if isinstance(m, UserMessage)]
+    follow_texts = [str(m.content) for m in user_msgs]
+    assert any("Follow 1" in t for t in follow_texts)
+    assert any("Follow 2" in t for t in follow_texts)
+
+
+@pytest.mark.asyncio
+async def test_agent_follow_up_mode_one_at_a_time():
+    """follow_up_mode='one-at-a-time' delivers one follow-up per round."""
+    global _follow_up_llm_call_count
+    _follow_up_llm_call_count = 0
+
+    register_provider("mock-api", mock_follow_up_stream)
+
+    agent = Agent(model=MOCK_MODEL, system_prompt="test", follow_up_mode="one-at-a-time")
+    agent.follow_up(UserMessage(content="Follow 1"))
+    agent.follow_up(UserMessage(content="Follow 2"))
+
+    await agent.prompt("hello")
+
+    # One-at-a-time: original + follow1 + follow2 = 3 LLM calls
+    assert _follow_up_llm_call_count == 3
+
+
+@pytest.mark.asyncio
+async def test_agent_continue():
+    """Agent.continue_() resumes from existing context."""
+    register_provider("mock-api", mock_text_stream)
+
+    agent = Agent(model=MOCK_MODEL, system_prompt="test")
+
+    # Manually set up context as if a prior turn left a tool result
+    agent.messages = [
+        UserMessage(content="original"),
+        ToolResultMessage(
+            tool_call_id="tc1", tool_name="some_tool",
+            content=[TextContent(text="result")],
+        ),
+    ]
+
+    await agent.continue_()
+
+    # Should have gotten an assistant response appended
+    assistant_msgs = [m for m in agent.messages if isinstance(m, AssistantMessage)]
+    assert len(assistant_msgs) >= 1
+
+
+@pytest.mark.asyncio
+async def test_agent_continue_with_queued_steering():
+    """continue_() with queued steering when last message is assistant."""
+    register_provider("mock-api", mock_text_stream)
+
+    agent = Agent(model=MOCK_MODEL, system_prompt="test")
+    agent.messages = [
+        UserMessage(content="hi"),
+        AssistantMessage(content=[TextContent(text="hello")]),
+    ]
+
+    # Queue steering — continue_() should drain it
+    agent.steer(UserMessage(content="Do more"))
+    await agent.continue_()
+
+    # Should have gotten another assistant response
+    assistant_msgs = [m for m in agent.messages if isinstance(m, AssistantMessage)]
+    assert len(assistant_msgs) >= 2
+
+
+@pytest.mark.asyncio
+async def test_agent_continue_rejects_assistant_no_queue():
+    """continue_() raises when last message is assistant and no queued messages."""
+    agent = Agent(model=MOCK_MODEL, system_prompt="test")
+    agent.messages = [AssistantMessage(content=[TextContent(text="hi")])]
+
+    with pytest.raises(RuntimeError, match="assistant"):
+        await agent.continue_()
+
+
+@pytest.mark.asyncio
+async def test_agent_wait_for_idle():
+    """wait_for_idle() returns immediately when agent is not running."""
+    agent = Agent(model=MOCK_MODEL, system_prompt="test")
+    # Should return instantly (no loop running)
+    await agent.wait_for_idle()
+
+
+@pytest.mark.asyncio
+async def test_agent_stream_fn():
+    """Agent with custom stream_fn uses it instead of default provider."""
+    global _custom_stream_call_count
+    _custom_stream_call_count = 0
+
+    agent = Agent(model=MOCK_MODEL, system_prompt="test", stream_fn=custom_mock_stream)
+    await agent.prompt("hello")
+
+    assert _custom_stream_call_count == 1
+    assistant_msgs = [m for m in agent.messages if isinstance(m, AssistantMessage)]
+    assert len(assistant_msgs) >= 1
+    assert assistant_msgs[-1].api == "custom-api"
+
+
+@pytest.mark.asyncio
+async def test_agent_queue_management():
+    """Test queue management methods."""
+    agent = Agent(model=MOCK_MODEL, system_prompt="test")
+
+    assert not agent.has_queued_messages()
+
+    agent.steer(UserMessage(content="s1"))
+    agent.follow_up(UserMessage(content="f1"))
+    assert agent.has_queued_messages()
+
+    agent.clear_steering_queue()
+    assert agent.has_queued_messages()  # follow_up still there
+
+    agent.clear_follow_up_queue()
+    assert not agent.has_queued_messages()
+
+    agent.steer(UserMessage(content="s2"))
+    agent.follow_up(UserMessage(content="f2"))
+    agent.clear_all_queues()
+    assert not agent.has_queued_messages()
+
+
+@pytest.mark.asyncio
+async def test_agent_state_setters():
+    """Test state setter methods."""
+    agent = Agent(model=MOCK_MODEL, system_prompt="test")
+
+    agent.set_system_prompt("new prompt")
+    assert agent.system_prompt == "new prompt"
+
+    new_model = Model(id="new-model", name="New", api="new-api", provider="new")
+    agent.set_model(new_model)
+    assert agent.model.id == "new-model"
+
+    tool = MockTool(name="t1")
+    agent.set_tools([tool])
+    assert len(agent.tools) == 1
+
+    agent.set_thinking_level("high")
+    assert agent._reasoning == "high"
+
+    msg = UserMessage(content="hello")
+    agent.append_message(msg)
+    assert len(agent.messages) == 1
+
+    agent.replace_messages([UserMessage(content="new")])
+    assert len(agent.messages) == 1
+
+    agent.clear_messages()
+    assert len(agent.messages) == 0
+
+
+@pytest.mark.asyncio
+async def test_agent_reset_clears_queues():
+    """reset() clears queues in addition to messages."""
+    agent = Agent(model=MOCK_MODEL, system_prompt="test")
+    agent.steer(UserMessage(content="s"))
+    agent.follow_up(UserMessage(content="f"))
+    agent.messages.append(UserMessage(content="hi"))
+
+    agent.reset()
+    assert not agent.has_queued_messages()
+    assert len(agent.messages) == 0
