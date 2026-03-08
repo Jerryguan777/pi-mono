@@ -57,6 +57,32 @@ TS source code is in the `packages/` directory and serves as the rewrite referen
 
 **Principle: Don't try to reproduce TS type gymnastics 1:1. `dataclass` + `Literal` + `isinstance` covers 90% of cases with cleaner code.**
 
+### Type Assertions & Non-null Assertions
+
+TS has compile-time-only type narrowing constructs that produce **zero runtime code**. Python has no direct equivalent — never use `assert` as a substitute, because `assert` is stripped by `python -O`.
+
+| TS Pattern | Incorrect Python | Correct Python |
+|------------|-----------------|----------------|
+| `value!` (non-null assertion) | `assert value is not None` | `if value is None: raise ValueError(...)` |
+| `msg as AssistantMessage` (type assertion) | `assert isinstance(msg, AssistantMessage)` | `if not isinstance(msg, AssistantMessage): raise TypeError(...)` |
+| `x as unknown as T` (double cast) | N/A | Restructure logic to avoid the cast |
+
+**Key difference**: TS `!` and `as` are erased at compile time and never execute. Python `assert` is a runtime statement that gets **silently removed** when running with `-O` (optimize). Using `assert` for type narrowing creates code that works in dev but may break silently in production.
+
+**Rule**: Use `assert` only for development-time invariant checks that are truly optional. For type narrowing and input validation, always use explicit `if` + `raise`.
+
+### Type Annotations — Avoid `Any`
+
+TS has explicit types for callbacks, events, and signals. When porting to Python, always use the concrete type rather than `Any`.
+
+| TS Type | Incorrect Python | Correct Python |
+|---------|-----------------|----------------|
+| `AbortSignal` | `signal: Any` | `signal: asyncio.Event \| None` |
+| `(payload: unknown) => void` | `on_payload: Any` | `on_payload: Callable[[Any], None] \| None` |
+| `Record<string, string>` | `headers: Any` | `headers: dict[str, str] \| None` |
+
+**Rule**: Only use `Any` when the TS type is truly `any` / `unknown` with no further structure. If TS provides a function signature, callback shape, or known type, translate it to the Python equivalent.
+
 ### Async & Streaming
 
 | TS Pattern | Python Equivalent |
