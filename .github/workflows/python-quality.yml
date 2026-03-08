@@ -1,0 +1,26 @@
+# .github/workflows/python-quality.yml
+name: Python 质量检查
+on:
+  push:
+    paths: ['py/**', 'tests/**']
+  pull_request:
+    paths: ['py/**', 'tests/**']
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync
+      - name: 代码检查
+        run: ruff check .
+      - name: 格式化检查
+        run: ruff format --check .
+      - name: 类型检查
+        run: mypy --strict .
+      - name: 测试
+        run: pytest --cov --cov-fail-under=80
+      - name: 对等检查
+        run: python scripts/check_parity.py
+
