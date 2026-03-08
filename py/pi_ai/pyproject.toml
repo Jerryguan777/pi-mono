@@ -4,4 +4,6 @@ version = "0.1.0"
 description = "Unified multi-provider LLM API"
 requires-python = ">=3.12"
 license = "MIT"
-dependencies = []
+dependencies = [
+    "partial-json-parser>=0.2",
+]
