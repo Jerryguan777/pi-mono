@@ -1,0 +1,30 @@
+[project]
+name = "pi-mono"
+version = "0.1.0"
+description = "Python rewrite of pi-mono — AI agent tools"
+requires-python = ">=3.12"
+license = "MIT"
+dependencies = []
+
+[tool.uv.workspace]
+members = [
+    "pi_ai",
+    "pi_agent",
+    "pi_tui",
+    "pi_coding_agent",
+    "pi_mom",
+    "pi_pods",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=6.0",
+    "ruff>=0.9",
+    "mypy>=1.14",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

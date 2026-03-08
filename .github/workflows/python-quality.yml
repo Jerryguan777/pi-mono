@@ -1,10 +1,15 @@
-# .github/workflows/python-quality.yml
-name: Python 质量检查
+name: Python Quality Check
 on:
   push:
-    paths: ['py/**', 'tests/**']
+    branches: ['python-rewrite', 'py/**']
+    paths: ['py/**']
   pull_request:
-    paths: ['py/**', 'tests/**']
+    branches: ['python-rewrite', 'py/**']
+    paths: ['py/**']
+
+defaults:
+  run:
+    working-directory: py
 
 jobs:
   quality:
@@ -13,14 +18,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
       - run: uv sync
-      - name: 代码检查
-        run: ruff check .
-      - name: 格式化检查
-        run: ruff format --check .
-      - name: 类型检查
-        run: mypy --strict .
-      - name: 测试
-        run: pytest --cov --cov-fail-under=80
-      - name: 对等检查
-        run: python scripts/check_parity.py
-
+      - name: Lint
+        run: uv run ruff check .
+      - name: Format check
+        run: uv run ruff format --check .
+      - name: Type check
+        run: uv run mypy --strict .
+      - name: Tests
+        run: uv run pytest --cov --cov-fail-under=80
+      - name: Parity check
+        run: uv run python scripts/check_parity.py
