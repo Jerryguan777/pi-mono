@@ -1,152 +1,152 @@
-# Pi-Mono Python 重写指南
+# Pi-Mono Python Rewrite Guide
 
-## 项目结构
+## Project Structure
 
-这是一个 TypeScript -> Python 的重写项目。所有 Python 代码统一放在 `py/` 目录下。
+This is a TypeScript -> Python rewrite project. All Python code lives under the `py/` directory.
 
 ```
 py/
-├── pyproject.toml          # uv workspace 根配置
+├── pyproject.toml          # uv workspace root config
 ├── uv.lock
 ├── ruff.toml
 ├── mypy.ini
 ├── scripts/
-│   ├── extract_public_api.py   # 解析 TS 导出，生成 Python 需实现的 API 清单
-│   └── check_parity.py         # 对比 TS 导出 vs Python 公共 API，报告差异
-├── pi_types/               # 共享类型定义/协议（最先实现）
-├── pi_ai/                  # AI/LLM 抽象层（对应 packages/ai/）
-├── pi_tui/                 # 终端 UI 库（对应 packages/tui/）
-├── pi_agent/               # Agent 核心（对应 packages/agent/）
-├── pi_coding_agent/        # 编码 Agent（对应 packages/coding-agent/）
-├── pi_web_ui/              # Web UI（对应 packages/web-ui/）
-├── pi_mom/                 # Slack 机器人（对应 packages/mom/）
-├── pi_pods/                # Pod 管理（对应 packages/pods/）
+│   ├── extract_public_api.py   # Parse TS exports, generate Python API checklist
+│   └── check_parity.py         # Compare TS exports vs Python public API, report gaps
+├── pi_types/               # Shared type definitions/protocols (implement first)
+├── pi_ai/                  # AI/LLM abstraction layer (maps to packages/ai/)
+├── pi_tui/                 # Terminal UI library (maps to packages/tui/)
+├── pi_agent/               # Agent core (maps to packages/agent/)
+├── pi_coding_agent/        # Coding agent (maps to packages/coding-agent/)
+├── pi_web_ui/              # Web UI (maps to packages/web-ui/)
+├── pi_mom/                 # Slack bot (maps to packages/mom/)
+├── pi_pods/                # Pod management (maps to packages/pods/)
 └── tests/
-    ├── unit/               # 单元测试（按包分子目录）
-    ├── integration/        # 跨模块集成测试
-    ├── e2e/                # 端到端测试
-    └── comparison/         # TS vs Python 行为对比测试
+    ├── unit/               # Unit tests (subdirs per package)
+    ├── integration/        # Cross-module integration tests
+    ├── e2e/                # End-to-end tests
+    └── comparison/         # TS vs Python behavior comparison tests
 ```
 
-TS 源码在 `packages/` 目录下，作为改写参考。改写时先读取对应的 TS 源文件理解接口和行为。
+TS source code is in the `packages/` directory and serves as the rewrite reference. Always read the corresponding TS source files to understand interfaces and behavior before rewriting.
 
-## 改写原则
+## Rewrite Principles
 
-### 接口对等
-- 每个 TS 包的所有 public export 都必须有对应的 Python 实现
-- 函数名：camelCase -> snake_case（如 `streamAnthropic` -> `stream_anthropic`）
-- 类名：保持 PascalCase
-- 文件名：kebab-case.ts -> snake_case.py（如 `agent-loop.ts` -> `agent_loop.py`）
-- TS `export function` -> 模块级函数，通过 `__init__.py` 统一导出
-- 不要遗漏任何 public class、function、type、constant
+### API Parity
+- Every public export from each TS package must have a corresponding Python implementation
+- Function names: camelCase -> snake_case (e.g. `streamAnthropic` -> `stream_anthropic`)
+- Class names: keep PascalCase
+- File names: kebab-case.ts -> snake_case.py (e.g. `agent-loop.ts` -> `agent_loop.py`)
+- TS `export function` -> module-level function, unified export via `__init__.py`
+- Do not omit any public class, function, type, or constant
 
-### 核心映射公式
+### Core Mapping Rules
 
-| TS 模式 | Python 对应 | 说明 |
-|---------|-------------|------|
-| `interface` / `type` | `@dataclass` | 自带 `__init__`, `__eq__`, `__repr__` |
-| 判别联合 `{ type: "foo" }` | `@dataclass` + `type: Literal["foo"]` | 用 `isinstance()` 替代 `event.type === ""` |
-| `enum` | `StrEnum` 或 `Literal` union | 视场景选择 |
+| TS Pattern | Python Equivalent | Notes |
+|------------|-------------------|-------|
+| `interface` / `type` | `@dataclass` | Comes with `__init__`, `__eq__`, `__repr__` |
+| Discriminated union `{ type: "foo" }` | `@dataclass` + `type: Literal["foo"]` | Use `isinstance()` instead of `event.type === ""` |
+| `enum` | `StrEnum` or `Literal` union | Choose based on context |
 | `namespace` | Python module | |
-| `{ ...obj, field: val }` (spread) | `dataclasses.replace(obj, field=val)` | 保持不可变更新 |
+| `{ ...obj, field: val }` (spread) | `dataclasses.replace(obj, field=val)` | Maintains immutable updates |
 | `Map<K, V>` | `dict[K, V]` | |
-| TypeBox schema / `Type.Object({})` | 手写 `dict` JSON Schema | 零依赖，不引入 TypeBox 等价物 |
-| 泛型 `<TApi extends Api>` | 直接具体化 | Python 泛型不实用，删掉即可 |
-| branded types (`string & {}`) | 普通 `str` | 用注释说明语义 |
-| 工厂函数 `createXxxTool()` | 类继承 `class XxxTool(AgentTool)` | Python 中类比工厂更自然 |
+| TypeBox schema / `Type.Object({})` | Hand-written `dict` JSON Schema | Zero dependencies, don't introduce TypeBox equivalents |
+| Generics `<TApi extends Api>` | Concretize directly | Python generics are impractical here, just remove them |
+| Branded types (`string & {}`) | Plain `str` | Use comments to document semantics |
+| Factory function `createXxxTool()` | Class inheritance `class XxxTool(AgentTool)` | Classes are more natural than factories in Python |
 
-**原则：不要试图 1:1 还原 TS 的类型体操。`dataclass` + `Literal` + `isinstance` 三件套覆盖 90% 场景。**
+**Principle: Don't try to reproduce TS type gymnastics 1:1. `dataclass` + `Literal` + `isinstance` covers 90% of cases with cleaner code.**
 
-### 异步与流式
+### Async & Streaming
 
-| TS 模式 | Python 对应 |
-|---------|-------------|
-| 自定义 `EventStream<T, R>` 类 | 原生 `AsyncIterator[T]` (async generator + `yield`) |
+| TS Pattern | Python Equivalent |
+|------------|-------------------|
+| Custom `EventStream<T, R>` class | Native `AsyncIterator[T]` (async generator + `yield`) |
 | `stream.push(event)` + `stream.end(result)` | `yield event` + `return` |
-| `stream.result()` 返回 `Promise<R>` | 调用方在迭代后取最终值 |
-| IIFE `(async () => { ... })()` 立即启动 | lazy `async def gen(): yield ...` 按需执行 |
+| `stream.result()` returning `Promise<R>` | Caller collects final value after iteration |
+| IIFE `(async () => { ... })()` eager start | Lazy `async def gen(): yield ...` on-demand |
 | `AbortController` / `AbortSignal` | `asyncio.Event` |
-| `new Promise(resolve => ...)` 手动 resolve | `asyncio.Event().wait()` / `.set()` |
+| `new Promise(resolve => ...)` manual resolve | `asyncio.Event().wait()` / `.set()` |
 | `Promise.all([...])` | `asyncio.gather(...)` |
 
-**原则：Python 的 async generator 是 EventStream 的天然替代品。不要移植 EventStream 类，直接用 `yield`。用 `asyncio.Event` 统一替代 AbortController。**
+**Principle: Python's async generator is the natural replacement for EventStream. Don't port the EventStream class — just use `yield`. Use `asyncio.Event` as a unified replacement for AbortController.**
 
-### Python 最佳实践
-- 异步代码使用 `asyncio` + `async`/`await`，不使用线程
-- 流式处理使用 `async generator`（`async def stream() -> AsyncIterator[...]`）
-- 错误处理使用异常，不使用返回错误码
-- 类型标注使用 Python 3.12+ 语法（`list[str]` 而非 `List[str]`，`X | None` 而非 `Optional[X]`）
-- 文件路径使用 `pathlib.Path`
-- 日志使用 `logging` 模块
-- 配置使用 `pydantic-settings` 或环境变量
-- 字符串使用 f-string
-- 状态管理：直接用实例属性（`self.model`, `self.messages` 等），不需要单一 state 对象模式；但保持 `subscribe()` + `_emit()` 事件通知模式
-- 序列化：`dataclass` 不是 JSON-native 的，需要显式写 `serialize` / `deserialize` 函数，比 pydantic `.model_dump()` 更轻量可控。序列化函数与类型定义放同一模块
+### Python Best Practices
+- Async code uses `asyncio` + `async`/`await`, no threads
+- Streaming uses `async generator` (`async def stream() -> AsyncIterator[...]`)
+- Error handling uses exceptions, not error codes
+- Type annotations use Python 3.12+ syntax (`list[str]` not `List[str]`, `X | None` not `Optional[X]`)
+- File paths use `pathlib.Path`
+- Logging uses the `logging` module
+- Configuration uses `pydantic-settings` or environment variables
+- Strings use f-strings
+- State management: use instance attributes directly (`self.model`, `self.messages`, etc.) instead of a single state object pattern; but keep the `subscribe()` + `_emit()` event notification pattern
+- Serialization: `dataclass` is not JSON-native — write explicit `serialize` / `deserialize` functions, which are lighter and more controllable than pydantic's `.model_dump()`. Keep serialization functions in the same module as type definitions
 
-### 不要做的事
-- 不要逐行翻译 TS 代码，要写出 Pythonic 的实现
-- 不要保留 TS 风格的回调/Promise 链，改用 async/await
-- 不要用裸 dict 代替应该定义为类的结构化数据
-- 不要把 TS 的 null/undefined 双值逻辑带入 Python（Python 只有 None）
-- 不要添加 TS 中不存在的功能
-- 不要省略 TS 中存在的 public API
-- 不要过早抽象 I/O 层（如 Operations 接口）——初始移植直接操作文件，未来需要远程执行时再补
-- 不要引入重量级类型校验库来替代 TypeBox——手写 dict JSON Schema 即可
+### Don'ts
+- Don't translate TS code line-by-line — write Pythonic implementations
+- Don't keep TS-style callback/Promise chains — use async/await
+- Don't use bare dicts where structured data should be a class
+- Don't carry TS null/undefined dual-value logic into Python (Python only has None)
+- Don't add features that don't exist in the TS source
+- Don't omit public APIs that exist in the TS source
+- Don't prematurely abstract the I/O layer (e.g. Operations interface) — operate on files directly in the initial port, add abstraction later if remote execution is needed
+- Don't introduce heavyweight type validation libraries to replace TypeBox — hand-written dict JSON Schema is sufficient
 
-## 每个模块必须产出
+## Required Deliverables Per Module
 
-1. **实现代码** — 带完整类型标注，放在 `py/<包名>/` 下
-2. **MAPPING.md** — 放在 `py/<包名>/MAPPING.md`，格式：
+1. **Implementation code** — with full type annotations, placed in `py/<package_name>/`
+2. **MAPPING.md** — placed in `py/<package_name>/MAPPING.md`, format:
    ```markdown
-   | TS 函数/类 | Python 等价物 | 状态 | 备注 |
-   |-----------|-------------|------|------|
-   | streamAnthropic() | stream_anthropic() | Done | 使用 anthropic SDK |
+   | TS Function/Class | Python Equivalent | Status | Notes |
+   |-------------------|-------------------|--------|-------|
+   | streamAnthropic() | stream_anthropic() | Done | Uses anthropic SDK |
    ```
-3. **单元测试** — 放在 `py/tests/unit/<包名>/`，覆盖率 >= 80%
-4. **通过 mypy --strict**（在 `py/` 目录下运行）
-5. **通过 ruff check && ruff format**（在 `py/` 目录下运行）
+3. **Unit tests** — placed in `py/tests/unit/<package_name>/`, coverage >= 80%
+4. **Pass mypy --strict** (run in `py/` directory)
+5. **Pass ruff check && ruff format** (run in `py/` directory)
 
-## 质量工具（全部在 py/ 目录下运行）
+## Quality Tools (all run from the `py/` directory)
 
 ```bash
 cd py/
-uv sync                         # 安装依赖
-ruff check .                    # lint
-ruff format .                   # 格式化
-mypy --strict .                 # 类型检查
-pytest --cov --cov-fail-under=80  # 测试 + 覆盖率
-python scripts/check_parity.py  # TS vs Python API 对等检查
+uv sync                         # Install dependencies
+ruff check .                    # Lint
+ruff format .                   # Format
+mypy --strict .                 # Type check
+pytest --cov --cov-fail-under=80  # Tests + coverage
+python scripts/check_parity.py  # TS vs Python API parity check
 ```
 
-## 技术栈
+## Tech Stack
 
-| 用途 | Python 库 |
-|------|----------|
-| 包管理 | uv workspace |
-| 类型检查 | mypy (strict) |
-| Lint + 格式化 | ruff |
-| 测试 | pytest + pytest-asyncio (auto mode) + pytest-cov |
-| 数据模型 | dataclass（轻量）/ pydantic（需要验证时） |
-| CLI | typer 或 click |
-| HTTP 客户端 | httpx |
+| Purpose | Python Library |
+|---------|---------------|
+| Package management | uv workspace |
+| Type checking | mypy (strict) |
+| Lint + formatting | ruff |
+| Testing | pytest + pytest-asyncio (auto mode) + pytest-cov |
+| Data models | dataclass (lightweight) / pydantic (when validation is needed) |
+| CLI | typer or click |
+| HTTP client | httpx |
 | OpenAI | openai |
 | Anthropic | anthropic |
 | Google AI | google-genai |
 | AWS Bedrock | boto3 |
 | Slack | slack-bolt |
-| SSH | asyncssh 或 paramiko |
-| 终端 UI | textual 或 prompt-toolkit |
-| Git | gitpython 或 subprocess |
-| Mock | unittest.mock.AsyncMock（替代 vitest 的 vi.fn()） |
+| SSH | asyncssh or paramiko |
+| Terminal UI | textual or prompt-toolkit |
+| Git | gitpython or subprocess |
+| Mocking | unittest.mock.AsyncMock (replaces vitest's vi.fn()) |
 
-## scripts/ 说明
+## Scripts
 
 ### extract_public_api.py
-- **输入**：TS 源文件或目录路径
-- **行为**：解析所有 `export` 的 function、class、type、interface、const
-- **输出**：markdown 格式的 checklist，列出每个导出项的名称、类型、签名
-- **用法**：`python scripts/extract_public_api.py ../../packages/ai/src/types.ts`
-- **示例输出**：
+- **Input**: TS source file or directory path
+- **Behavior**: Parses all `export`ed functions, classes, types, interfaces, and consts
+- **Output**: Markdown checklist with each export's name, kind, and signature
+- **Usage**: `python scripts/extract_public_api.py ../../packages/ai/src/types.ts`
+- **Example output**:
   ```
   - [ ] type Message -> class/TypedDict
   - [ ] function createStream() -> async def create_stream()
@@ -154,18 +154,18 @@ python scripts/check_parity.py  # TS vs Python API 对等检查
   ```
 
 ### check_parity.py
-- **输入**：TS 包路径 + 对应的 Python 包路径
-- **行为**：对比 TS 导出列表 vs Python `__all__` / 公共 API
-- **输出**：报告缺失的、多余的、名称不匹配的项
-- **用法**：`python scripts/check_parity.py ../../packages/ai/src pi_ai`
+- **Input**: TS package path + corresponding Python package path
+- **Behavior**: Compares TS export list vs Python `__all__` / public API
+- **Output**: Reports missing, extra, and name-mismatched items
+- **Usage**: `python scripts/check_parity.py ../../packages/ai/src pi_ai`
 
-## 工作流
+## Workflow
 
-1. 读取 GitHub Issue 中的任务范围和验收标准
-2. 读取对应的 TS 源文件，理解接口和行为
-3. 运行 `python scripts/extract_public_api.py` 生成 API 清单
-4. 先定义 Python 接口（Protocol / ABC），再实现
-5. 每个函数/类实现后立即写测试
-6. 填写 MAPPING.md
-7. 运行全部质量检查（ruff、mypy、pytest）
-8. 提交并推送到当前分支
+1. Read the task scope and acceptance criteria from the GitHub Issue
+2. Read the corresponding TS source files to understand interfaces and behavior
+3. Run `python scripts/extract_public_api.py` to generate the API checklist
+4. Define Python interfaces (Protocol / ABC) first, then implement
+5. Write tests immediately after implementing each function/class
+6. Fill in MAPPING.md
+7. Run all quality checks (ruff, mypy, pytest)
+8. Commit and push to the current branch
