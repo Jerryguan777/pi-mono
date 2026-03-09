@@ -199,3 +199,122 @@
 | `inferCopilotInitiator()` | `infer_copilot_initiator()` | Done | |
 | `hasCopilotVisionInput()` | `has_copilot_vision_input()` | Done | |
 | `buildCopilotDynamicHeaders()` | `build_copilot_dynamic_headers()` | Done | |
+
+## providers/google-shared.ts → providers/google_shared.py
+
+| TS Function/Class | Python Equivalent | Status | Notes |
+|-------------------|-------------------|--------|-------|
+| `isThinkingPart()` | `is_thinking_part()` | Done | |
+| `retainThoughtSignature()` | `retain_thought_signature()` | Done | |
+| `requiresToolCallId()` | `requires_tool_call_id()` | Done | |
+| `convertMessages()` | `convert_messages()` | Done | Converts to Gemini Content[] format |
+| `convertTools()` | `convert_tools()` | Done | |
+| `mapToolChoice()` | `map_tool_choice()` | Done | |
+| `mapStopReason()` | `map_stop_reason()` | Done | |
+| `mapStopReasonString()` | `map_stop_reason_string()` | Done | |
+
+## providers/google.ts → providers/google.py
+
+| TS Function/Class | Python Equivalent | Status | Notes |
+|-------------------|-------------------|--------|-------|
+| `interface GoogleOptions` | `@dataclass GoogleOptions` | Done | Extends StreamOptions |
+| `streamGoogle()` | `stream_google()` | Done | Uses google-genai SDK |
+| `streamSimpleGoogle()` | `stream_simple_google()` | Done | |
+
+## providers/google-vertex.ts → providers/google_vertex.py
+
+| TS Function/Class | Python Equivalent | Status | Notes |
+|-------------------|-------------------|--------|-------|
+| `interface GoogleVertexOptions` | `@dataclass GoogleVertexOptions` | Done | Extends StreamOptions, adds project/location |
+| `streamGoogleVertex()` | `stream_google_vertex()` | Done | Uses google-genai SDK with vertexai=True |
+| `streamSimpleGoogleVertex()` | `stream_simple_google_vertex()` | Done | |
+
+## providers/google-gemini-cli.ts → providers/google_gemini_cli.py
+
+| TS Function/Class | Python Equivalent | Status | Notes |
+|-------------------|-------------------|--------|-------|
+| `type GoogleThinkingLevel` | `GoogleThinkingLevel` (Literal) | Done | |
+| `interface GoogleGeminiCliOptions` | `@dataclass GoogleGeminiCliOptions` | Done | Extends StreamOptions |
+| `extractRetryDelay()` | `extract_retry_delay()` | Done | |
+| `buildRequest()` | `build_request()` | Done | |
+| `streamGoogleGeminiCli()` | `stream_google_gemini_cli()` | Done | Uses httpx for raw HTTP streaming |
+| `streamSimpleGoogleGeminiCli()` | `stream_simple_google_gemini_cli()` | Done | |
+
+## providers/amazon-bedrock.ts → providers/amazon_bedrock.py
+
+| TS Function/Class | Python Equivalent | Status | Notes |
+|-------------------|-------------------|--------|-------|
+| `interface BedrockOptions` | `@dataclass BedrockOptions` | Done | Extends StreamOptions, adds region/profile |
+| `streamBedrock()` | `stream_bedrock()` | Done | Uses boto3 bedrock-runtime converse_stream |
+| `streamSimpleBedrock()` | `stream_simple_bedrock()` | Done | |
+
+## utils/oauth/types.ts → oauth/types.py
+
+| TS Function/Class | Python Equivalent | Status | Notes |
+|-------------------|-------------------|--------|-------|
+| `type OAuthCredentials` | `@dataclass OAuthCredentials` | Done | |
+| `type OAuthProviderId` | `OAuthProviderId` (str alias) | Done | |
+| `type OAuthPrompt` | `@dataclass OAuthPrompt` | Done | |
+| `type OAuthAuthInfo` | `@dataclass OAuthAuthInfo` | Done | |
+| `interface OAuthLoginCallbacks` | `@dataclass OAuthLoginCallbacks` | Done | |
+| `interface OAuthProviderInterface` | `class OAuthProviderInterface` (Protocol) | Done | |
+| `interface OAuthProviderInfo` | `@dataclass OAuthProviderInfo` | Done | |
+
+## utils/oauth/pkce.ts → oauth/pkce.py
+
+| TS Function/Class | Python Equivalent | Status | Notes |
+|-------------------|-------------------|--------|-------|
+| `generatePKCE()` | `generate_pkce()` | Done | Returns (verifier, challenge) tuple |
+
+## utils/oauth/index.ts → oauth/__init__.py
+
+| TS Function/Class | Python Equivalent | Status | Notes |
+|-------------------|-------------------|--------|-------|
+| `getOAuthProvider()` | `get_oauth_provider()` | Done | |
+| `registerOAuthProvider()` | `register_oauth_provider()` | Done | |
+| `getOAuthProviders()` | `get_oauth_providers()` | Done | |
+| `getOAuthProviderInfoList()` | `get_oauth_provider_info_list()` | Done | Deprecated |
+| `refreshOAuthToken()` | `refresh_oauth_token()` | Done | Deprecated |
+| `getOAuthApiKey()` | `get_oauth_api_key()` | Done | Auto-refreshes expired tokens |
+
+## utils/oauth/anthropic.ts → oauth/anthropic_oauth.py
+
+| TS Function/Class | Python Equivalent | Status | Notes |
+|-------------------|-------------------|--------|-------|
+| `loginAnthropic()` | `login_anthropic()` | Done | |
+| `refreshAnthropicToken()` | `refresh_anthropic_token()` | Done | |
+| `anthropicOAuthProvider` | `anthropic_oauth_provider` | Done | |
+
+## utils/oauth/github-copilot.ts → oauth/github_copilot.py
+
+| TS Function/Class | Python Equivalent | Status | Notes |
+|-------------------|-------------------|--------|-------|
+| `normalizeDomain()` | `normalize_domain()` | Done | |
+| `getGitHubCopilotBaseUrl()` | `get_github_copilot_base_url()` | Done | |
+| `refreshGitHubCopilotToken()` | `refresh_github_copilot_token()` | Done | |
+| `loginGitHubCopilot()` | `login_github_copilot()` | Done | Device code flow |
+| `githubCopilotOAuthProvider` | `github_copilot_oauth_provider` | Done | |
+
+## utils/oauth/google-gemini-cli.ts → oauth/google_gemini_cli.py
+
+| TS Function/Class | Python Equivalent | Status | Notes |
+|-------------------|-------------------|--------|-------|
+| `refreshGoogleCloudToken()` | `refresh_google_cloud_token()` | Done | |
+| `loginGeminiCli()` | `login_gemini_cli()` | Done | Local callback server + PKCE |
+| `geminiCliOAuthProvider` | `gemini_cli_oauth_provider` | Done | |
+
+## utils/oauth/google-antigravity.ts → oauth/google_antigravity.py
+
+| TS Function/Class | Python Equivalent | Status | Notes |
+|-------------------|-------------------|--------|-------|
+| `refreshAntigravityToken()` | `refresh_antigravity_token()` | Done | |
+| `loginAntigravity()` | `login_antigravity()` | Done | Local callback server + PKCE |
+| `antigravityOAuthProvider` | `antigravity_oauth_provider` | Done | |
+
+## utils/oauth/openai-codex.ts → oauth/openai_codex.py
+
+| TS Function/Class | Python Equivalent | Status | Notes |
+|-------------------|-------------------|--------|-------|
+| `loginOpenAICodex()` | `login_openai_codex()` | Done | Local callback server + PKCE |
+| `refreshOpenAICodexToken()` | `refresh_openai_codex_token()` | Done | |
+| `openaiCodexOAuthProvider` | `openai_codex_oauth_provider` | Done | |
