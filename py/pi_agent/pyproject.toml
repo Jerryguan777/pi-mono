@@ -4,4 +4,7 @@ version = "0.1.0"
 description = "Agent runtime with tool calling"
 requires-python = ">=3.12"
 license = "MIT"
-dependencies = []
+dependencies = ["pi-ai", "httpx"]
+
+[tool.uv.sources]
+pi-ai = { workspace = true }

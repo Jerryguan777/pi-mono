@@ -702,6 +702,16 @@ wheels = [
 name = "pi-agent"
 version = "0.1.0"
 source = { virtual = "pi_agent" }
+dependencies = [
+    { name = "httpx" },
+    { name = "pi-ai" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "httpx" },
+    { name = "pi-ai", editable = "pi_ai" },
+]
 
 [[package]]
 name = "pi-ai"
