@@ -16,6 +16,21 @@ porting additional code or when debugging cross-language issues.
 | `session-manager.ts` | `session_manager.py` |
 | `package-manager.ts` | `package_manager.py` |
 | `agent-session.ts` | `agent_session.py` |
+| `config.ts` | `config.py` |
+| `auth-storage.ts` | `auth_storage.py` |
+| `settings-manager.ts` | `settings_manager.py` |
+| `model-registry.ts` | `model_registry.py` |
+| `model-resolver.ts` | `model_resolver.py` |
+| `skills.ts` | `skills.py` |
+| `prompt-templates.ts` | `prompt_templates.py` |
+| `resource-loader.ts` | `resource_loader.py` |
+| `compaction/utils.ts` | `compaction/utils.py` |
+| `compaction/compaction.ts` | `compaction/compaction.py` |
+| `compaction/branch-summarization.ts` | `compaction/branch_summarization.py` |
+| `extensions/types.ts` | `extensions/types.py` |
+| `extensions/loader.ts` | `extensions/loader.py` |
+| `extensions/runner.ts` | `extensions/runner.py` |
+| `extensions/wrapper.ts` | `extensions/wrapper.py` |
 | `core/tools/truncate.ts` | `core/tools/truncate.py` |
 | `core/tools/path-utils.ts` | `core/tools/path_utils.py` |
 | `core/tools/edit-diff.ts` | `core/tools/edit_diff.py` |
@@ -306,3 +321,38 @@ The following require parallel task 3-3 (compaction module):
 | `export class Foo` | `class Foo` |
 | `private _foo` | `self._foo` (by convention) |
 | JSONL `parentId` (camelCase) | `parent_id` in Python, serialized as `parentId` |
+
+---
+
+## Key Adaptation Decisions (Extensions/Settings/Compaction)
+
+### File locking (proper-lockfile) → threading.Lock
+TypeScript uses `proper-lockfile` for cross-process file locking. Python uses `threading.Lock` (in-process only, sufficient for single-process agent).
+
+### jiti (dynamic TS loading) → importlib.util
+TypeScript loads extension plugins via `jiti`. Python loads `.py` extension files via `importlib.util.spec_from_file_location`.
+
+### minimatch → fnmatch
+TypeScript uses `minimatch` for glob pattern matching. Python uses the built-in `fnmatch` module.
+
+### YAML frontmatter → PyYAML + fallback
+TypeScript parses YAML frontmatter with a dedicated library. Python uses `PyYAML` (`yaml.safe_load`) with a basic key:value fallback parser.
+
+### AJV/TypeBox schema validation → simplified runtime checks
+TypeScript uses AJV + TypeBox for JSON schema validation of settings and model registry config. Python validates with simple `isinstance` checks and key presence tests.
+
+### OAuth helpers → pi_ai
+OAuth credential management delegates to `pi_ai` provider utilities.
+
+## Settings JSON Compatibility
+
+Settings are persisted in JSON using camelCase keys (to remain compatible with the TypeScript `.pi/settings.json` format). The Python port maintains a bidirectional mapping dictionary (`_CAMEL_TO_SNAKE` / `_SNAKE_TO_CAMEL`) in `settings_manager.py`.
+
+## Extension Factory Convention
+
+TypeScript extensions export a default function via ES module default export. Python extensions must export a callable factory under one of these attribute names (checked in order):
+1. `extension`
+2. `register`
+3. `factory`
+4. `main`
+5. Any non-underscore callable that is not a class

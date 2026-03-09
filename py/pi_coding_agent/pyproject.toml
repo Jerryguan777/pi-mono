@@ -7,6 +7,8 @@ license = "MIT"
 dependencies = [
     "pi-agent",
     "pi-ai",
+    "filelock>=3.0",
+    "pyyaml>=6.0",
 ]
 
 [tool.uv.sources]
