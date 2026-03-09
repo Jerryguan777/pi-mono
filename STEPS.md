@@ -1696,14 +1696,14 @@ claude "Read issue #XX from github (gh issue view XX --json title,body,comments,
 # 全部完成并审核后合并
 cd /home/jerry/ai/pi-mono-worktree/pi-mono
 git checkout python-rewrite
-git merge --no-ff py/ca-session -m "merge: [Phase 3] Coding-agent 核心会话"
-git merge --no-ff py/ca-tools -m "merge: [Phase 3] Coding-agent 工具"
-git merge --no-ff py/ca-extensions -m "merge: [Phase 3] Coding-agent 扩展"
-git merge --no-ff py/ca-interactive-core -m "merge: [Phase 3] Coding-agent 交互核心 + CLI"
-git merge --no-ff py/ca-interactive-components -m "merge: [Phase 3] Coding-agent 交互组件"
-git merge --no-ff py/ca-rpc-utils -m "merge: [Phase 3] Coding-agent RPC + 工具函数"
-git merge --no-ff py/pods -m "merge: [Phase 3] Pods 包"
-git merge --no-ff py/mom -m "merge: [Phase 3] Mom 包"
+git merge --no-ff py/ca-session -m "merge: [Phase 3] Coding-agent core session"
+git merge --no-ff py/ca-tools -m "merge: [Phase 3] Coding-agent tools"
+git merge --no-ff py/ca-extensions -m "merge: [Phase 3] Coding-agent extension"
+git merge --no-ff py/ca-interactive-core -m "merge: [Phase 3] Coding-agent interactive core + CLI"
+git merge --no-ff py/ca-interactive-components -m "merge: [Phase 3] Coding-agent interactive component"
+git merge --no-ff py/ca-rpc-utils -m "merge: [Phase 3] Coding-agent RPC + util functions"
+git merge --no-ff py/pods -m "merge: [Phase 3] Pods package"
+git merge --no-ff py/mom -m "merge: [Phase 3] Mom package"
 
 # 验证
 cd py && uv sync && uv run ruff check . && uv run ruff format --check . && uv run mypy --strict . && uv run pytest --cov --cov-fail-under=80 -v
@@ -1731,36 +1731,80 @@ gh issue create --title "[Phase 4] 跨包集成测试和 E2E 测试" --label "py
 ### 范围
 编写全面的集成测试和端到端测试。
 
+### 原则
+- **不设覆盖率目标** — 覆盖率已由单元测试保证，集成/E2E 测试的目的是验证跨组件边界的真实交互
+- **不重复单元测试** — 如果 mock 掉了所有依赖只测单个函数，那是单元测试，不属于本 issue 范围
+- **每个测试必须跨越至少两个真实组件的边界**
+- **每个测试必须能回答："这个测试能防止什么真实故障？"**
+
 ### 集成测试（`py/tests/integration/`）
-- `test_ai_stream_dispatch.py` — `stream()` 正确分发到各 provider（mock SDK）
-- `test_agent_loop.py` — Agent loop + mock 工具 + mock LLM 完整对话
-- `test_agent_tool_execution.py` — Agent 调用工具，验证事件流
-- `test_coding_agent_session.py` — 会话创建/加载/保存 + agent loop
-- `test_coding_agent_tools.py` — 各 coding 工具在临时目录中的执行
+
+#### 1. `test_agent_loop_with_tools.py` — Agent loop × 真实工具执行
+不 mock 工具。在真实 temp 目录里跑 agent loop + ReadTool/WriteTool/EditTool，使用确定性 fake LLM（按脚本返回固定响应序列，不是 mock 掉整个接口）。
+
+验证链路：
+- fake LLM 返回"写文件"tool call → WriteTool 执行 → 文件真实存在于磁盘
+- fake LLM 返回"读文件"tool call → ReadTool 执行 → 返回内容与写入一致
+- fake LLM 返回"编辑文件"tool call → EditTool 执行 → 文件内容确实被修改
+- 整个过程中 event stream 事件顺序正确（ToolExecutionStart → ToolExecutionEnd → MessageEnd）
+
+#### 2. `test_session_persistence.py` — Session 持久化 × 跨实例恢复
+不 mock SessionManager 内部。真实走完：
+
+- 实例 A：创建 session → 跑一轮 agent loop（用 fake LLM）→ 消息写入磁盘
+- 实例 B：从同一个 session file 加载 → 验证对话历史完整 → 继续跑一轮 → 验证新消息追加到同一文件
+- 验证 JSONL 文件可被第三方 JSON parser 正确逐行解析（防止序列化格式回归）
+
+#### 3. `test_mom_event_to_agent.py` — Mom event → agent 调用链路
+用 fake Slack client（实现真实接口，in-memory 收发消息）+ fake LLM：
+
+- 写一个 immediate event JSON 文件到 events 目录
+- EventsWatcher 拾取 → 触发 agent 调用 → agent 产出响应 → 响应到达 fake Slack outbox
+- 验证端到端：输入的 event text 与最终发送到 channel 的消息之间有因果关系
 
 ### E2E 测试（`py/tests/e2e/`）
-- `test_cli_smoke.py` — `python -m pi_coding_agent --help` 正常退出
-- `test_cli_print_mode.py` — 打印模式 + mock LLM 完成一次对话
-- `test_pods_cli.py` — Pods CLI 参数解析 + SSH 命令生成（mock SSH）
-- `test_mom_event_loop.py` — Mom 事件循环 + mock Slack 处理消息
+
+#### 4. `test_cli_process.py` — CLI 真实进程启动
+用 `subprocess.run` 启动真实 Python 入口点（需先确保有 `__main__.py`）：
+
+- `python -m pi_coding_agent --version` → stdout 包含版本号，exit code 0
+- `python -m pi_coding_agent --help` → stdout 包含 Usage，exit code 0
+- `python -m pi_coding_agent --invalid-flag` → stderr 包含错误信息，exit code != 0
+- `python -m pi_coding_agent -p "hello"` → 需配合 fake LLM 或 `--provider mock` 参数
+
+#### 5. `test_pods_ssh_commands.py` — Pods SSH 命令拼装 × mock server
+验证 `ssh_exec` 拼装出的完整命令行正确：
+
+- 使用 subprocess 录制/回放模式，捕获实际传给 `create_subprocess_exec` 的完整参数列表
+- 验证各种 SSH 选项组合（port、keepalive、StrictHostKeyChecking）生成的命令字符串
+- 验证 `scp_file` 的源/目标路径正确传递
+
+### 不写什么
+- ~~CLI 参数解析的各种 flag 组合~~ → `tests/unit/pi_coding_agent/test_cli_args.py` 已覆盖
+- ~~类型序列化 roundtrip~~ → 各包单元测试已覆盖
+- ~~event 解析的各种 error case~~ → `tests/unit/pi_mom/test_events.py` 已覆盖
+- ~~`assert isinstance(x, SomeClass)` 式断言~~ → 没有信息量
 
 ### 依赖关系
 - 依赖: Phase 3 所有任务已合并
 
 ### 操作指引
 1. 阅读 `py/PYTHON_REWRITE_GUIDE.md`
-2. 编写跨包边界的集成测试
-3. 编写 CLI 入口的 E2E 测试
-4. 所有测试必须使用 mock — 不进行真实 API/网络调用
-5. 运行: `cd py && uv run pytest tests/ --cov --cov-fail-under=80 -v`
+2. 先阅读 `tests/unit/` 下已有的单元测试，明确哪些路径已被覆盖，避免重复
+3. 实现 fake LLM：一个实现真实 LLM 接口但按脚本返回固定响应序列的类，供多个集成测试复用
+4. 编写跨组件边界的集成测试（真实工具 + fake LLM，不 mock 工具）
+5. 编写 CLI 入口的 E2E 测试（真实 subprocess，不直接调用内部函数）
+6. 所有测试不依赖网络、不依赖 API key
+7. 运行: `cd py && uv run pytest tests/ -v`
 
 ### 验收标准
 - [ ] 所有集成测试通过
 - [ ] 所有 E2E 测试通过
+- [ ] 每个测试跨越至少两个真实组件的边界（不允许 mock 掉所有依赖）
 - [ ] 测试中无真实 API/网络调用
-- [ ] 总体覆盖率 >= 80%
+- [ ] 不与 `tests/unit/` 中已有测试重复覆盖相同路径
 ISSUE_EOF
-)"
+)"                                                                                                                                                               
 ```
 
 #### Issue: 任务 4-2 — 对等验证 + 最终打磨
