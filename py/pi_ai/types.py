@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from collections.abc import Callable
+from collections.abc import AsyncGenerator, Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any, Literal
@@ -606,3 +606,10 @@ def deserialize_model(data: dict[str, Any]) -> Model:
         max_tokens=data.get("maxTokens", 0),
         headers=data.get("headers"),
     )
+
+
+# --- Stream type aliases (used by providers) ---
+
+AssistantMessageEventStream = AsyncGenerator[AssistantMessageEvent, None]
+
+StreamFunction = Callable[..., AssistantMessageEventStream]
