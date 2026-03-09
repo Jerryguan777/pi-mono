@@ -516,6 +516,7 @@ class TestProcessSseLine:
         partial = _make_partial(make_model())
         result = _process_sse_line('data: {"type": "unknown"}', partial, {})
         assert result is None
+
     @pytest.mark.asyncio
     async def test_abort_signal_stops_streaming(self) -> None:
         """Setting abort signal should stop streaming and yield error."""
