@@ -7,10 +7,19 @@ license = "MIT"
 dependencies = [
     "pi-agent",
     "pi-ai",
+    "pi-tui",
     "filelock>=3.0",
     "pyyaml>=6.0",
+    "watchdog>=3.0; extra == 'watcher'",
 ]
+
+[project.optional-dependencies]
+watcher = ["watchdog>=3.0"]
+
+[project.scripts]
+pi = "pi_coding_agent.main:main"
 
 [tool.uv.sources]
 pi-agent = { workspace = true }
 pi-ai = { workspace = true }
+pi-tui = { workspace = true }
