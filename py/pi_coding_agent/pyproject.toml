@@ -4,4 +4,16 @@ version = "0.1.0"
 description = "Interactive coding agent CLI"
 requires-python = ">=3.12"
 license = "MIT"
-dependencies = []
+dependencies = [
+    "pi-tui",
+    "watchdog>=3.0; extra == 'watcher'",
+]
+
+[project.optional-dependencies]
+watcher = ["watchdog>=3.0"]
+
+[project.scripts]
+pi = "pi_coding_agent.main:main"
+
+[tool.uv.sources]
+pi-tui = { workspace = true }
