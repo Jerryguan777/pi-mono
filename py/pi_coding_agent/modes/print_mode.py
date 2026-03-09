@@ -9,10 +9,18 @@ Used for:
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import sys
 from dataclasses import dataclass, field
 from typing import Any, Literal
+
+
+def _to_json(obj: Any) -> str:
+    """Serialize an object to JSON, handling dataclasses."""
+    if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
+        return json.dumps(dataclasses.asdict(obj))
+    return json.dumps(obj)
 
 
 @dataclass
@@ -49,7 +57,7 @@ async def run_print_mode(session: Any, options: PrintModeOptions) -> None:
         if session_manager is not None:
             header = session_manager.get_header()
             if header is not None:
-                print(json.dumps(header))
+                print(_to_json(header))
 
     # Set up extensions for print mode (no UI)
     await session.bind_extensions(
@@ -72,7 +80,7 @@ async def run_print_mode(session: Any, options: PrintModeOptions) -> None:
     # Subscribe to events - always needed for session persistence
     def handle_event(event: Any) -> None:
         if mode == "json":
-            print(json.dumps(event))
+            print(_to_json(event))
 
     session.subscribe(handle_event)
 

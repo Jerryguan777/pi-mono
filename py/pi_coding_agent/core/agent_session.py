@@ -165,7 +165,13 @@ class AgentSessionConfig:
     agent: Any  # Agent
     session_manager: SessionManager
     cwd: str
+    settings_manager: Any = None  # SettingsManager
+    scoped_models: list[Any] | None = None  # list[ScopedModel]
+    resource_loader: Any = None  # ResourceLoader
+    custom_tools: list[Any] | None = None  # list[ToolDefinition]
+    model_registry: Any = None  # ModelRegistry
     initial_active_tool_names: list[str] | None = None
+    extension_runner_ref: dict[str, Any] | None = None
 
 
 @dataclass
@@ -204,7 +210,19 @@ class AgentSession:
         self._agent: Any = config.agent  # Agent
         self._session_manager = config.session_manager
         self._cwd = config.cwd
+        self._settings_manager: Any = config.settings_manager
+        self._scoped_models: list[Any] = config.scoped_models or []
+        self._resource_loader: Any = config.resource_loader
+        self._custom_tools: list[Any] = config.custom_tools or []
+        self._model_registry: Any = config.model_registry
         self._initial_active_tool_names = config.initial_active_tool_names
+        self._extension_runner_ref: dict[str, Any] | None = config.extension_runner_ref
+
+        # Extension bindings
+        self._extension_ui_context: Any = None
+        self._extension_command_context_actions: Any = None
+        self._extension_shutdown_handler: Callable[[], None] | None = None
+        self._extension_error_listener: Callable[[Any], None] | None = None
 
         # Event listeners
         self._event_listeners: list[AgentSessionEventListener] = []
@@ -389,6 +407,37 @@ class AgentSession:
         """Remove all listeners and disconnect from agent."""
         self._disconnect_from_agent()
         self._event_listeners.clear()
+
+    # =========================================================================
+    # Extension bindings
+    # =========================================================================
+
+    async def bind_extensions(self, bindings: ExtensionBindings | dict[str, Any]) -> None:
+        """Bind extension callbacks to this session.
+
+        Accepts either an ExtensionBindings dataclass or a raw dict
+        (for convenience in print/interactive modes).
+        """
+        if isinstance(bindings, dict):
+            bindings = ExtensionBindings(
+                ui_context=bindings.get("ui_context"),
+                command_context_actions=bindings.get("command_context_actions"),
+                shutdown_handler=bindings.get("shutdown_handler"),
+                on_error=bindings.get("on_error"),
+            )
+
+        if bindings.ui_context is not None:
+            self._extension_ui_context = bindings.ui_context
+        if bindings.command_context_actions is not None:
+            self._extension_command_context_actions = bindings.command_context_actions
+        if bindings.shutdown_handler is not None:
+            self._extension_shutdown_handler = bindings.shutdown_handler
+        if bindings.on_error is not None:
+            self._extension_error_listener = bindings.on_error
+
+        runner = self._extension_runner_ref.get("current") if self._extension_runner_ref else None
+        if runner is not None:
+            await runner.emit({"type": "session_start"})
 
     # =========================================================================
     # Prompting

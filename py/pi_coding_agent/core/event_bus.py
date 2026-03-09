@@ -61,6 +61,6 @@ class _EventBusImpl:
         self._handlers.clear()
 
 
-def create_event_bus() -> EventBus:
+def create_event_bus() -> EventBusController:
     """Create and return a new EventBus instance."""
     return _EventBusImpl()

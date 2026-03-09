@@ -158,11 +158,9 @@ async def stream_openai_responses(
         if options and options.on_payload:
             options.on_payload(params)
 
-        signal_kwarg = {}
-        if options and options.signal:
-            signal_kwarg["signal"] = options.signal
-
-        openai_stream = await client.responses.create(**params, **signal_kwarg)  # type: ignore[call-overload]
+        # Note: Python OpenAI SDK does not support signal/AbortController.
+        # Abort is handled via options.signal (asyncio.Event) checked between chunks.
+        openai_stream = await client.responses.create(**params)  # type: ignore[call-overload]
 
         yield StartEvent(partial=output)
 

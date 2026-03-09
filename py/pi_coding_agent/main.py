@@ -13,16 +13,26 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from pi_ai.providers.register_builtins import register_built_in_api_providers
 from pi_coding_agent.cli.args import parse_args, print_help
 from pi_coding_agent.cli.config_selector import ConfigSelectorOptions, select_config
 from pi_coding_agent.cli.file_processor import ProcessFileOptions, process_file_arguments
 from pi_coding_agent.config import APP_NAME, VERSION, get_agent_dir, get_models_path
+from pi_coding_agent.core.auth_storage import AuthStorage
+from pi_coding_agent.core.model_registry import ModelRegistry
+from pi_coding_agent.core.model_resolver import ScopedModel, resolve_cli_model, resolve_model_scope
+from pi_coding_agent.core.resource_loader import DefaultResourceLoader, DefaultResourceLoaderOptions
+from pi_coding_agent.core.sdk import CreateAgentSessionOptions, create_agent_session
+from pi_coding_agent.core.session_manager import SessionManager
+from pi_coding_agent.core.settings_manager import SettingsManager
 from pi_coding_agent.migrations import run_migrations, show_deprecation_warnings
 from pi_coding_agent.modes.interactive.interactive_mode import (
     InteractiveMode,
     InteractiveModeOptions,
 )
 from pi_coding_agent.modes.interactive.theme import init_theme, stop_theme_watcher
+from pi_coding_agent.modes.print_mode import PrintModeOptions, run_print_mode
+from pi_coding_agent.modes.rpc.rpc_mode import run_rpc_mode
 
 # ===========================================================================
 # Package command handling
@@ -220,6 +230,9 @@ async def main(args: list[str]) -> None:
     Args:
         args: Command-line arguments (typically sys.argv[1:]).
     """
+    # Register all built-in API providers (TS does this at module scope)
+    register_built_in_api_providers()
+
     if await _handle_package_command(args):
         return
 
@@ -243,54 +256,45 @@ async def main(args: list[str]) -> None:
         print_help()
         sys.exit(0)
 
+    # Create core services early so they can be reused
+    cwd = os.getcwd()
+    agent_dir = str(get_agent_dir())
+    settings_manager = SettingsManager.create(Path(cwd), Path(agent_dir))
+    auth_storage = AuthStorage.create()
+    model_registry = ModelRegistry(auth_storage, get_models_path())
+
     # Load extensions so they can register custom CLI flags.
-    # Uses lazy imports because pi_coding_agent.core lives in a parallel task
-    # that is merged separately. Falls back gracefully if not yet available.
     extension_flags: dict[str, dict[str, str]] = {}
     extensions_result: Any = None
 
-    try:
-        from pi_coding_agent.core.resource_loader import (
-            DefaultResourceLoader,
-            DefaultResourceLoaderOptions,
+    resource_loader = DefaultResourceLoader(
+        DefaultResourceLoaderOptions(
+            cwd=cwd,
+            agent_dir=agent_dir,
+            settings_manager=settings_manager,
+            additional_extension_paths=first_pass.extensions or [],
+            additional_skill_paths=first_pass.skills or [],
+            additional_prompt_template_paths=first_pass.prompt_templates or [],
+            no_extensions=first_pass.no_extensions,
+            no_skills=first_pass.no_skills,
+            no_prompt_templates=first_pass.no_prompt_templates,
+            system_prompt=first_pass.system_prompt,
+            append_system_prompt=first_pass.append_system_prompt,
         )
-        from pi_coding_agent.core.settings_manager import SettingsManager
+    )
+    await resource_loader.reload()
 
-        cwd = os.getcwd()
-        agent_dir = str(get_agent_dir())
-        settings_manager = SettingsManager.create(Path(cwd), Path(agent_dir))
-
-        resource_loader = DefaultResourceLoader(
-            DefaultResourceLoaderOptions(
-                cwd=cwd,
-                agent_dir=agent_dir,
-                settings_manager=settings_manager,
-                additional_extension_paths=first_pass.extensions or [],
-                additional_skill_paths=first_pass.skills or [],
-                additional_prompt_template_paths=first_pass.prompt_templates or [],
-                no_extensions=first_pass.no_extensions,
-                no_skills=first_pass.no_skills,
-                no_prompt_templates=first_pass.no_prompt_templates,
-                system_prompt=first_pass.system_prompt,
-                append_system_prompt=first_pass.append_system_prompt,
-            )
+    extensions_result = resource_loader.get_extensions()
+    for err in extensions_result.errors:
+        print(
+            f'Failed to load extension "{err["path"]}": {err["error"]}',
+            file=sys.stderr,
         )
-        await resource_loader.reload()
 
-        extensions_result = resource_loader.get_extensions()
-        for err in extensions_result.errors:
-            print(
-                f'Failed to load extension "{err["path"]}": {err["error"]}',
-                file=sys.stderr,
-            )
-
-        # Collect CLI flags registered by extensions
-        for ext in extensions_result.extensions:
-            for flag_name, flag in ext.flags.items():
-                extension_flags[flag_name] = {"type": flag.type}
-
-    except ImportError:
-        pass  # Core modules not yet merged; extension flag discovery is disabled
+    # Collect CLI flags registered by extensions
+    for ext in extensions_result.extensions:
+        for flag_name, flag in ext.flags.items():
+            extension_flags[flag_name] = {"type": flag.type}
 
     # Second pass: re-parse with extension flags so extension-registered flags
     # (e.g. --plan from a plan-mode extension) are captured in unknown_flags.
@@ -303,9 +307,12 @@ async def main(args: list[str]) -> None:
 
     if parsed.list_models is not None:
         search_pattern: str | None = parsed.list_models if isinstance(parsed.list_models, str) else None
-        # ModelRegistry is not yet available - print a placeholder
-        print(f"Model listing not yet implemented. Search: {search_pattern!r}")
-        print(f"Models path: {get_models_path()}")
+        all_models = model_registry.get_all()
+        for m in all_models:
+            display = f"{m.provider}/{m.id}"
+            if search_pattern and search_pattern.lower() not in display.lower():
+                continue
+            print(display)
         sys.exit(0)
 
     # Read piped stdin if not in RPC mode
@@ -336,26 +343,74 @@ async def main(args: list[str]) -> None:
     if is_interactive and deprecation_warnings:
         await show_deprecation_warnings(deprecation_warnings)
 
-    # Session creation and agent session are stubs until parallel tasks complete
+    # Resolve model from CLI flags
+    resolved_model = None
+    if parsed.model:
+        cli_result = resolve_cli_model(parsed.provider, parsed.model, model_registry)
+        if cli_result.error:
+            print(cli_result.error, file=sys.stderr)
+            sys.exit(1)
+        resolved_model = cli_result.model
+
+    # Resolve scoped models
+    scoped_models: list[ScopedModel] = []
+    model_patterns = parsed.models or settings_manager.get_enabled_models()
+    if model_patterns:
+        scoped_models = await resolve_model_scope(model_patterns, model_registry)
+
+    # Create session manager
+    session_manager: SessionManager | None = None
+    if parsed.no_session:
+        session_manager = SessionManager.in_memory()
+    elif parsed.session:
+        session_manager = SessionManager.open(parsed.session, parsed.session_dir)
+    elif parsed.continue_session:
+        session_manager = SessionManager.continue_recent(cwd, parsed.session_dir)
+    elif parsed.session_dir:
+        session_manager = SessionManager.create(cwd, parsed.session_dir)
+
+    # Create agent session
+    session_result = await create_agent_session(
+        CreateAgentSessionOptions(
+            cwd=cwd,
+            agent_dir=agent_dir,
+            model=resolved_model,
+            thinking_level=parsed.thinking,
+            session_manager=session_manager,
+            settings_manager=settings_manager,
+            auth_storage=auth_storage,
+            model_registry=model_registry,
+            resource_loader=resource_loader,
+            scoped_models=scoped_models if scoped_models else None,
+        )
+    )
+    session = session_result.session
+
     if not is_interactive:
-        if mode == "rpc":
-            print("RPC mode not yet implemented.", file=sys.stderr)
+        if session.model is None:
+            print("No models available. Set an API key env var.", file=sys.stderr)
             sys.exit(1)
 
-        # Print mode stub
-        print(
-            "Agent session not yet implemented. This requires pi_coding_agent.core (parallel task).",
-            file=sys.stderr,
-        )
-        stop_theme_watcher()
-        sys.exit(1)
+        if mode == "rpc":
+            run_rpc_mode(session)  # type: ignore[arg-type]
+        else:
+            await run_print_mode(
+                session,
+                PrintModeOptions(
+                    mode=mode,
+                    messages=remaining_messages,
+                    initial_message=initial_message,
+                    initial_images=initial_images,
+                ),
+            )
+            stop_theme_watcher()
+            sys.exit(0)
     else:
-        # Interactive mode stub
         mode_obj = InteractiveMode(
-            session=None,
+            session=session,
             options=InteractiveModeOptions(
                 migrated_providers=migrated_providers,
-                model_fallback_message=None,
+                model_fallback_message=session_result.model_fallback_message,
                 initial_message=initial_message,
                 initial_images=initial_images,
                 initial_messages=remaining_messages,

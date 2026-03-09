@@ -1804,7 +1804,7 @@ gh issue create --title "[Phase 4] 跨包集成测试和 E2E 测试" --label "py
 - [ ] 测试中无真实 API/网络调用
 - [ ] 不与 `tests/unit/` 中已有测试重复覆盖相同路径
 ISSUE_EOF
-)"                                                                                                                                                               
+)"
 ```
 
 #### Issue: 任务 4-2 — 对等验证 + 最终打磨
@@ -1866,8 +1866,8 @@ claude "Read issue #XX from github (gh issue view XX --json title,body,comments,
 # 合并
 cd /home/jerry/ai/pi-mono-worktree/pi-mono
 git checkout python-rewrite
-git merge --no-ff py/integration -m "merge: [Phase 4] 集成测试和 E2E 测试"
-git merge --no-ff py/parity -m "merge: [Phase 4] 对等验证和打磨"
+git merge --no-ff py/integration -m "merge: [Phase 4] integration test和 E2E test"
+git merge --no-ff py/parity -m "merge: [Phase 4] quivenlent test"
 
 # 最终验证
 cd py && uv sync && uv run ruff check . && uv run ruff format --check . && uv run mypy --strict . && uv run pytest --cov --cov-fail-under=80 && uv run python scripts/check_parity.py
@@ -1906,3 +1906,97 @@ uv run mypy --strict .
 uv run pytest --cov --cov-fail-under=80
 uv run python scripts/check_parity.py  # 应报告 0 个缺口
 ```
+
+---
+
+## Phase 5: 手动集成测试
+
+### 5.1 接线验证
+
+`sdk.py` 的 `create_agent_session()` 和 `main.py` 的模式分发已从 stub 替换为真实实现。
+
+### 5.2 静态检查
+
+```bash
+cd /home/jerry/ai/pi-mono-worktree/pi-mono/py
+uv run ruff check .
+uv run ruff format --check .
+uv run mypy --strict .
+```
+
+### 5.3 自动化测试
+
+```bash
+uv run pytest --cov --cov-fail-under=80
+```
+
+### 5.4 CLI 冒烟测试
+
+```bash
+# Help and version
+uv run python -m pi_coding_agent --help
+uv run python -m pi_coding_agent --version
+
+# List models
+uv run python -m pi_coding_agent --list-models
+
+# Print mode (requires API key)
+echo "Say hello" | uv run python -m pi_coding_agent -p --provider openai --model gpt-4o-mini
+
+# JSON mode
+echo "Say hello" | uv run python -m pi_coding_agent --mode json --provider openai --model gpt-4o-mini
+```
+
+### 5.5 Pods 冒烟测试
+
+```bash
+cd /home/jerry/ai/pi-mono-worktree/pi-mono/py
+
+# Help / 子命令列表
+uv run python -m pi_pods.cli --help
+
+# list（无运行中的 pod 时应正常返回空列表）
+uv run python -m pi_pods.cli list
+
+# start --help（确认参数解析正常）
+uv run python -m pi_pods.cli start --help
+
+# shell --help
+uv run python -m pi_pods.cli shell --help
+
+# ssh --help
+uv run python -m pi_pods.cli ssh --help
+```
+
+> **注意**: `start` / `stop` / `ssh` / `shell` 等子命令需要 RunPod API key
+> (`RUNPOD_API_KEY`) 和实际 GPU 资源，仅在有环境时手动验证。
+
+### 5.6 Mom (Slack Bot) 冒烟测试
+
+```bash
+cd /home/jerry/ai/pi-mono-worktree/pi-mono/py
+
+# 无参数应打印 usage 并退出
+uv run python -m pi_mom.main 2>&1; echo "exit: $?"
+# 预期: Usage: mom [--sandbox=...] <working-directory> / exit: 1
+
+# --help（如果 argparse 支持）
+uv run python -m pi_mom.main --help 2>&1 || true
+
+# 模块导入检查（验证所有依赖链正常）
+uv run python -c "
+from pi_mom.slack import SlackBot
+from pi_mom.agent import AgentRunner
+from pi_mom.events import EventsWatcher
+print('All mom modules imported OK')
+"
+```
+
+> **注意**: 完整运行 mom bot 需要 Slack tokens (`MOM_SLACK_APP_TOKEN`,
+> `MOM_SLACK_BOT_TOKEN`) 和 API key，仅在有 Slack workspace 时手动验证：
+> ```bash
+> export MOM_SLACK_APP_TOKEN=xapp-...
+> export MOM_SLACK_BOT_TOKEN=xoxb-...
+> export OPENAI_API_KEY=sk-...
+> uv run python -m pi_mom.main /tmp/mom-workdir
+> ```

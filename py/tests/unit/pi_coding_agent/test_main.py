@@ -298,15 +298,21 @@ async def test_main_rpc_with_file_args_exits(capsys: pytest.CaptureFixture[str])
 
 @pytest.mark.asyncio
 async def test_main_print_mode_exits(capsys: pytest.CaptureFixture[str]) -> None:
+    mock_session = MagicMock()
+    mock_session.model = MagicMock()  # non-None so it doesn't exit with "No models"
+    mock_result = MagicMock(session=mock_session, model_fallback_message=None)
+
     with patch("pi_coding_agent.main.run_migrations") as mock_mig:
         mock_mig.return_value = MagicMock(migrated_auth_providers=[], deprecation_warnings=[])
         with (
             patch("pi_coding_agent.main._read_piped_stdin", return_value=None),
+            patch("pi_coding_agent.main.create_agent_session", return_value=mock_result),
+            patch("pi_coding_agent.main.run_print_mode", return_value=None) as mock_print,
             pytest.raises(SystemExit) as exc_info,
         ):
             await main(["--print", "Hello world"])
-    # Should exit (session not yet implemented)
-    assert exc_info.value.code == 1
+    assert exc_info.value.code == 0
+    mock_print.assert_called_once()
 
 
 @pytest.mark.asyncio
