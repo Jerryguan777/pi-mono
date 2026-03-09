@@ -23,7 +23,12 @@ from pi_tui.components.input import Input
 from pi_tui.components.loader import Loader
 from pi_tui.components.markdown import DefaultTextStyle, Markdown, MarkdownTheme
 from pi_tui.components.select_list import SelectItem, SelectList, SelectListTheme
-from pi_tui.components.settings_list import SettingItem, SettingsList, SettingsListTheme
+from pi_tui.components.settings_list import (
+    SettingItem,
+    SettingsList,
+    SettingsListOptions,
+    SettingsListTheme,
+)
 from pi_tui.components.spacer import Spacer
 from pi_tui.components.text import Text
 from pi_tui.components.truncated_text import TruncatedText
@@ -61,7 +66,7 @@ from pi_tui.keys import (
 from pi_tui.kill_ring import KillRing
 
 # Input buffering for batch splitting
-from pi_tui.stdin_buffer import StdinBuffer, StdinBufferOptions
+from pi_tui.stdin_buffer import StdinBuffer, StdinBufferEventMap, StdinBufferOptions
 
 # Terminal interface and implementations
 from pi_tui.terminal import ProcessTerminal, Terminal
@@ -88,6 +93,7 @@ from pi_tui.terminal_image import (
     get_png_dimensions,
     get_webp_dimensions,
     image_fallback,
+    is_image_line,
     render_image,
     reset_capabilities_cache,
     set_cell_dimensions,
@@ -180,12 +186,14 @@ __all__ = [
     "SelectListTheme",
     "SettingItem",
     "SettingsList",
+    "SettingsListOptions",
     "SettingsListTheme",
     "SizeValue",
     "SlashCommand",
     "Spacer",
     # StdinBuffer
     "StdinBuffer",
+    "StdinBufferEventMap",
     "StdinBufferOptions",
     "Terminal",
     "TerminalCapabilities",
@@ -217,6 +225,7 @@ __all__ = [
     "get_webp_dimensions",
     "image_fallback",
     "is_focusable",
+    "is_image_line",
     "is_key_release",
     "is_key_repeat",
     "is_kitty_protocol_active",

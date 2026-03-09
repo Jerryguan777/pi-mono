@@ -158,6 +158,26 @@ class MomRetrySettings:
     base_delay_ms: int
 
 
+@dataclass
+class MomSettings:
+    """Top-level settings for mom."""
+
+    default_provider: str | None = None
+    default_model: str | None = None
+    default_thinking_level: str | None = None  # "off" | "minimal" | "low" | "medium" | "high"
+    compaction: MomCompactionSettings | None = None
+    retry: MomRetrySettings | None = None
+
+
+def sync_log_to_session_manager(
+    context_messages: list[AgentMessage],
+    channel_dir: str,
+    exclude_slack_ts: str | None = None,
+) -> list[AgentMessage]:
+    """Alias for sync_log_to_context (matches TS export name syncLogToSessionManager)."""
+    return sync_log_to_context(context_messages, channel_dir, exclude_slack_ts)
+
+
 _DEFAULT_COMPACTION = MomCompactionSettings(
     enabled=True,
     reserve_tokens=16384,

@@ -64,3 +64,8 @@ class AssistantMessageEventStream(EventStream[AssistantMessageEvent, AssistantMe
         if isinstance(event, ErrorEvent):
             return event.error
         raise ValueError("Unexpected event type for final result")
+
+
+def create_assistant_message_event_stream() -> AssistantMessageEventStream:
+    """Factory function for AssistantMessageEventStream (for use in extensions)."""
+    return AssistantMessageEventStream()

@@ -23,12 +23,120 @@ EditorTheme = Any
 KeyId = str
 OverlayHandle = Any
 OverlayOptions = Any
+Theme = Any
 
-# Input source
-InputSource = Literal["user", "slash_command", "extension"]
+# Input source (TS: "interactive" | "rpc" | "extension")
+InputSource = Literal["interactive", "rpc", "extension"]
 
-# MessageRenderer
-MessageRenderer = Any  # Callable
+# Model select source (TS: "set" | "cycle" | "restore")
+ModelSelectSource = Literal["set", "cycle", "restore"]
+
+# Widget placement (TS: "aboveEditor" | "belowEditor")
+WidgetPlacement = Literal["aboveEditor", "belowEditor"]
+
+# Handler type aliases (from extensions/types.ts)
+# These are Callable type aliases used by ExtensionActions/ExtensionRuntime.
+SendMessageHandler = Callable[[Any, Any], None]
+SendUserMessageHandler = Callable[[str | list[Any], Any], None]
+AppendEntryHandler = Callable[[str, Any], None]
+SetSessionNameHandler = Callable[[str], None]
+GetSessionNameHandler = Callable[[], str | None]
+GetActiveToolsHandler = Callable[[], list[str]]
+GetAllToolsHandler = Callable[[], list["ToolInfo"]]
+GetCommandsHandler = Callable[[], list[Any]]  # list[SlashCommandInfo]
+SetActiveToolsHandler = Callable[[list[str]], None]
+SetModelHandler = Callable[[Any], Awaitable[bool]]  # Model -> bool
+GetThinkingLevelHandler = Callable[[], str]  # ThinkingLevel
+SetThinkingLevelHandler = Callable[[str], None]  # ThinkingLevel
+SetLabelHandler = Callable[[str, str | None], None]
+
+# Terminal input handler (from extensions/types.ts)
+TerminalInputHandler = Callable[[str], dict[str, Any] | None]
+
+# Extension handler generic type (from extensions/types.ts)
+# ExtensionHandler<E, R> = (event: E, ctx: ExtensionContext) -> R | None
+ExtensionHandler = Callable[[Any, "ExtensionContext"], Awaitable[Any] | Any]
+
+
+# ============================================================================
+# UI Dialog/Widget Options
+# ============================================================================
+
+
+@dataclass
+class ExtensionUIDialogOptions:
+    """Options for extension UI dialogs."""
+
+    signal: Any = None  # asyncio.Event or None
+    timeout: int | None = None
+
+
+@dataclass
+class ExtensionWidgetOptions:
+    """Options for extension widgets."""
+
+    placement: WidgetPlacement = "aboveEditor"
+
+
+@dataclass
+class ExtensionUIContext:
+    """UI context for extensions to request interactive UI.
+
+    Each mode (interactive, RPC, print) provides its own implementation.
+    """
+
+    select: Any = None  # Callable
+    confirm: Any = None  # Callable
+    input: Any = None  # Callable
+    notify: Any = None  # Callable
+    on_terminal_input: Any = None  # Callable
+    set_status: Any = None  # Callable
+    set_working_message: Any = None  # Callable
+    set_widget: Any = None  # Callable
+    set_footer: Any = None  # Callable
+    set_header: Any = None  # Callable
+    set_title: Any = None  # Callable
+    custom: Any = None  # Callable
+    paste_to_editor: Any = None  # Callable
+    set_editor_text: Any = None  # Callable
+    get_editor_text: Any = None  # Callable
+    editor: Any = None  # Callable
+    set_editor_component: Any = None  # Callable
+    theme: Any = None  # Theme
+    get_all_themes: Any = None  # Callable
+    get_theme: Any = None  # Callable
+    set_theme: Any = None  # Callable
+    get_tools_expanded: Any = None  # Callable
+    set_tools_expanded: Any = None  # Callable
+
+
+# ============================================================================
+# Message Rendering
+# ============================================================================
+
+
+@dataclass
+class MessageRenderOptions:
+    """Options for rendering a custom message."""
+
+    expanded: bool = False
+
+
+# MessageRenderer: (message, options, theme) -> Component | None
+MessageRenderer = Callable[[Any, MessageRenderOptions, Any], Any]
+
+
+# ============================================================================
+# Tool Render Options
+# ============================================================================
+
+
+@dataclass
+class ToolRenderResultOptions:
+    """Rendering options for tool results."""
+
+    expanded: bool = False
+    is_partial: bool = False
 
 
 # ============================================================================
@@ -126,6 +234,89 @@ class ToolCallEvent:
     input: dict[str, Any] = field(default_factory=dict)
 
 
+# Per-tool typed call events
+
+
+@dataclass
+class BashToolCallEvent:
+    """Fired before the bash tool executes."""
+
+    type: Literal["tool_call"] = "tool_call"
+    tool_name: Literal["bash"] = "bash"
+    tool_call_id: str = ""
+    input: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class ReadToolCallEvent:
+    """Fired before the read tool executes."""
+
+    type: Literal["tool_call"] = "tool_call"
+    tool_name: Literal["read"] = "read"
+    tool_call_id: str = ""
+    input: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class EditToolCallEvent:
+    """Fired before the edit tool executes."""
+
+    type: Literal["tool_call"] = "tool_call"
+    tool_name: Literal["edit"] = "edit"
+    tool_call_id: str = ""
+    input: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class WriteToolCallEvent:
+    """Fired before the write tool executes."""
+
+    type: Literal["tool_call"] = "tool_call"
+    tool_name: Literal["write"] = "write"
+    tool_call_id: str = ""
+    input: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class GrepToolCallEvent:
+    """Fired before the grep tool executes."""
+
+    type: Literal["tool_call"] = "tool_call"
+    tool_name: Literal["grep"] = "grep"
+    tool_call_id: str = ""
+    input: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class FindToolCallEvent:
+    """Fired before the find tool executes."""
+
+    type: Literal["tool_call"] = "tool_call"
+    tool_name: Literal["find"] = "find"
+    tool_call_id: str = ""
+    input: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class LsToolCallEvent:
+    """Fired before the ls tool executes."""
+
+    type: Literal["tool_call"] = "tool_call"
+    tool_name: Literal["ls"] = "ls"
+    tool_call_id: str = ""
+    input: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class CustomToolCallEvent:
+    """Fired before a custom (extension) tool executes."""
+
+    type: Literal["tool_call"] = "tool_call"
+    tool_name: str = ""
+    tool_call_id: str = ""
+    input: dict[str, Any] = field(default_factory=dict)
+
+
 @dataclass
 class ToolCallEventResult:
     block: bool = False
@@ -134,6 +325,113 @@ class ToolCallEventResult:
 
 @dataclass
 class ToolResultEvent:
+    type: Literal["tool_result"] = "tool_result"
+    tool_name: str = ""
+    tool_call_id: str = ""
+    input: dict[str, Any] = field(default_factory=dict)
+    content: list[Any] = field(default_factory=list)
+    details: Any = None
+    is_error: bool = False
+
+
+# Per-tool typed result events
+
+
+@dataclass
+class BashToolResultEvent:
+    """Fired after the bash tool executes."""
+
+    type: Literal["tool_result"] = "tool_result"
+    tool_name: Literal["bash"] = "bash"
+    tool_call_id: str = ""
+    input: dict[str, Any] = field(default_factory=dict)
+    content: list[Any] = field(default_factory=list)
+    details: Any = None
+    is_error: bool = False
+
+
+@dataclass
+class ReadToolResultEvent:
+    """Fired after the read tool executes."""
+
+    type: Literal["tool_result"] = "tool_result"
+    tool_name: Literal["read"] = "read"
+    tool_call_id: str = ""
+    input: dict[str, Any] = field(default_factory=dict)
+    content: list[Any] = field(default_factory=list)
+    details: Any = None
+    is_error: bool = False
+
+
+@dataclass
+class EditToolResultEvent:
+    """Fired after the edit tool executes."""
+
+    type: Literal["tool_result"] = "tool_result"
+    tool_name: Literal["edit"] = "edit"
+    tool_call_id: str = ""
+    input: dict[str, Any] = field(default_factory=dict)
+    content: list[Any] = field(default_factory=list)
+    details: Any = None
+    is_error: bool = False
+
+
+@dataclass
+class WriteToolResultEvent:
+    """Fired after the write tool executes."""
+
+    type: Literal["tool_result"] = "tool_result"
+    tool_name: Literal["write"] = "write"
+    tool_call_id: str = ""
+    input: dict[str, Any] = field(default_factory=dict)
+    content: list[Any] = field(default_factory=list)
+    details: None = None
+    is_error: bool = False
+
+
+@dataclass
+class GrepToolResultEvent:
+    """Fired after the grep tool executes."""
+
+    type: Literal["tool_result"] = "tool_result"
+    tool_name: Literal["grep"] = "grep"
+    tool_call_id: str = ""
+    input: dict[str, Any] = field(default_factory=dict)
+    content: list[Any] = field(default_factory=list)
+    details: Any = None
+    is_error: bool = False
+
+
+@dataclass
+class FindToolResultEvent:
+    """Fired after the find tool executes."""
+
+    type: Literal["tool_result"] = "tool_result"
+    tool_name: Literal["find"] = "find"
+    tool_call_id: str = ""
+    input: dict[str, Any] = field(default_factory=dict)
+    content: list[Any] = field(default_factory=list)
+    details: Any = None
+    is_error: bool = False
+
+
+@dataclass
+class LsToolResultEvent:
+    """Fired after the ls tool executes."""
+
+    type: Literal["tool_result"] = "tool_result"
+    tool_name: Literal["ls"] = "ls"
+    tool_call_id: str = ""
+    input: dict[str, Any] = field(default_factory=dict)
+    content: list[Any] = field(default_factory=list)
+    details: Any = None
+    is_error: bool = False
+
+
+@dataclass
+class CustomToolResultEvent:
+    """Fired after a custom (extension) tool executes."""
+
     type: Literal["tool_result"] = "tool_result"
     tool_name: str = ""
     tool_call_id: str = ""
@@ -412,6 +710,38 @@ class CompactOptions:
     """Options for compaction."""
 
     custom_instructions: str | None = None
+
+
+# ============================================================================
+# Tree Preparation
+# ============================================================================
+
+
+@dataclass
+class TreePreparation:
+    """Preparation data for tree navigation."""
+
+    target_id: str = ""
+    old_leaf_id: str | None = None
+    common_ancestor_id: str | None = None
+    entries_to_summarize: list[Any] = field(default_factory=list)  # SessionEntry[]
+    user_wants_summary: bool = False
+    custom_instructions: str | None = None
+    replace_instructions: bool = False
+    label: str | None = None
+
+
+# ============================================================================
+# Extension Runtime State
+# ============================================================================
+
+
+@dataclass
+class ExtensionRuntimeState:
+    """Shared state created by loader, used during registration and runtime."""
+
+    flag_values: dict[str, bool | str] = field(default_factory=dict)
+    pending_provider_registrations: list[dict[str, Any]] = field(default_factory=list)
 
 
 # ============================================================================
@@ -749,7 +1079,37 @@ def is_tool_result_event_type(event_type: str) -> bool:
 
 def is_bash_tool_result(event: Any) -> bool:
     """Check if a tool result event is from the bash tool."""
-    return isinstance(event, ToolResultEvent) and event.tool_name == "bash"
+    return (isinstance(event, (ToolResultEvent, BashToolResultEvent))) and event.tool_name == "bash"
+
+
+def is_read_tool_result(event: Any) -> bool:
+    """Check if a tool result event is from the read tool."""
+    return (isinstance(event, (ToolResultEvent, ReadToolResultEvent))) and event.tool_name == "read"
+
+
+def is_edit_tool_result(event: Any) -> bool:
+    """Check if a tool result event is from the edit tool."""
+    return (isinstance(event, (ToolResultEvent, EditToolResultEvent))) and event.tool_name == "edit"
+
+
+def is_write_tool_result(event: Any) -> bool:
+    """Check if a tool result event is from the write tool."""
+    return (isinstance(event, (ToolResultEvent, WriteToolResultEvent))) and event.tool_name == "write"
+
+
+def is_grep_tool_result(event: Any) -> bool:
+    """Check if a tool result event is from the grep tool."""
+    return (isinstance(event, (ToolResultEvent, GrepToolResultEvent))) and event.tool_name == "grep"
+
+
+def is_find_tool_result(event: Any) -> bool:
+    """Check if a tool result event is from the find tool."""
+    return (isinstance(event, (ToolResultEvent, FindToolResultEvent))) and event.tool_name == "find"
+
+
+def is_ls_tool_result(event: Any) -> bool:
+    """Check if a tool result event is from the ls tool."""
+    return (isinstance(event, (ToolResultEvent, LsToolResultEvent))) and event.tool_name == "ls"
 
 
 def is_session_before_event(event_type: str) -> bool:

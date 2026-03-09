@@ -2,6 +2,8 @@
 
 from pi_ai.api_registry import (
     ApiProvider,
+    ApiStreamFunction,
+    ApiStreamSimpleFunction,
     StreamFunction,
     StreamSimpleFunction,
     clear_api_providers,
@@ -11,6 +13,10 @@ from pi_ai.api_registry import (
     unregister_api_providers,
 )
 from pi_ai.env_api_keys import get_env_api_key
+from pi_ai.event_stream import (
+    EventStream,
+    create_assistant_message_event_stream,
+)
 from pi_ai.models import (
     calculate_cost,
     clear_model_registry,
@@ -27,6 +33,8 @@ from pi_ai.oauth import (
     OAuthCredentials,
     OAuthLoginCallbacks,
     OAuthPrompt,
+    OAuthProvider,
+    OAuthProviderId,
     OAuthProviderInfo,
     OAuthProviderInterface,
     anthropic_oauth_provider,
@@ -89,14 +97,16 @@ from pi_ai.providers.google_gemini_cli import (
     stream_simple_google_gemini_cli,
 )
 from pi_ai.providers.google_shared import (
-    convert_tools as convert_google_tools,
-)
-from pi_ai.providers.google_shared import (
+    convert_tools,
     is_thinking_part,
+    map_stop_reason,
     map_stop_reason_string,
     map_tool_choice,
     requires_tool_call_id,
     retain_thought_signature,
+)
+from pi_ai.providers.google_shared import (
+    convert_tools as convert_google_tools,
 )
 from pi_ai.providers.google_shared import (
     map_stop_reason as map_google_stop_reason,
@@ -164,6 +174,7 @@ from pi_ai.types import (
     OpenAIResponsesCompat,
     OpenRouterRouting,
     Provider,
+    ProviderStreamOptions,
     SimpleStreamOptions,
     StartEvent,
     StopReason,
@@ -204,6 +215,7 @@ from pi_ai.types import (
 from pi_ai.utils.json_parse import parse_streaming_json
 from pi_ai.utils.overflow import get_overflow_patterns, is_context_overflow
 from pi_ai.utils.sanitize_unicode import sanitize_surrogates
+from pi_ai.utils.typebox_helpers import string_enum
 from pi_ai.utils.validation import validate_tool_arguments, validate_tool_call
 
 __all__ = [
@@ -213,6 +225,8 @@ __all__ = [
     "AnthropicOptions",
     "Api",
     "ApiProvider",
+    "ApiStreamFunction",
+    "ApiStreamSimpleFunction",
     "AssistantContentBlock",
     "AssistantMessage",
     "AssistantMessageEvent",
@@ -227,6 +241,7 @@ __all__ = [
     "ConvertResponsesToolsOptions",
     "DoneEvent",
     "ErrorEvent",
+    "EventStream",
     "GoogleGeminiCliOptions",
     "GoogleOptions",
     "GoogleThinkingLevel",
@@ -241,6 +256,8 @@ __all__ = [
     "OAuthCredentials",
     "OAuthLoginCallbacks",
     "OAuthPrompt",
+    "OAuthProvider",
+    "OAuthProviderId",
     "OAuthProviderInfo",
     "OAuthProviderInterface",
     "OpenAICodexResponsesOptions",
@@ -251,6 +268,7 @@ __all__ = [
     "OpenAIResponsesStreamOptions",
     "OpenRouterRouting",
     "Provider",
+    "ProviderStreamOptions",
     "SimpleStreamOptions",
     "StartEvent",
     "StopReason",
@@ -295,6 +313,8 @@ __all__ = [
     "convert_messages",
     "convert_responses_messages",
     "convert_responses_tools",
+    "convert_tools",
+    "create_assistant_message_event_stream",
     "deserialize_content_block",
     "deserialize_message",
     "deserialize_model",
@@ -327,6 +347,7 @@ __all__ = [
     "login_github_copilot",
     "login_openai_codex",
     "map_google_stop_reason",
+    "map_stop_reason",
     "map_stop_reason_string",
     "map_tool_choice",
     "models_are_equal",
@@ -373,6 +394,7 @@ __all__ = [
     "stream_simple_openai_codex_responses",
     "stream_simple_openai_completions",
     "stream_simple_openai_responses",
+    "string_enum",
     "supports_xhigh",
     "transform_messages",
     "unregister_api_providers",

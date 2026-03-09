@@ -148,15 +148,15 @@ def test_resolve_var_refs_circular() -> None:
 
 
 def test_resolve_theme_colors_basic() -> None:
-    colors = {"accent": "#ff0000", "border": "#00ff00"}
+    colors: dict[str, str | int] = {"accent": "#ff0000", "border": "#00ff00"}
     resolved = resolve_theme_colors(colors)
     assert resolved["accent"] == "#ff0000"
     assert resolved["border"] == "#00ff00"
 
 
 def test_resolve_theme_colors_with_vars() -> None:
-    colors = {"accent": "myVar", "border": "#000"}
-    vars_ = {"myVar": "#aabbcc"}
+    colors: dict[str, str | int] = {"accent": "myVar", "border": "#000"}
+    vars_: dict[str, str | int] = {"myVar": "#aabbcc"}
     resolved = resolve_theme_colors(colors, vars_)
     assert resolved["accent"] == "#aabbcc"
 
@@ -167,42 +167,42 @@ def test_resolve_theme_colors_with_vars() -> None:
 
 
 def test_theme_fg() -> None:
-    fg_colors = {"accent": "#ff0000"}
+    fg_colors: dict[str, str | int] = {"accent": "#ff0000"}
     bg_colors: dict[str, str | int] = {}
-    t = Theme(fg_colors, bg_colors, "truecolor")  # type: ignore[arg-type]
+    t = Theme(fg_colors, bg_colors, "truecolor")
     result = t.fg("accent", "hello")
     assert "hello" in result
     assert "\x1b[39m" in result  # foreground reset
 
 
 def test_theme_fg_unknown_raises() -> None:
-    t = Theme({}, {}, "truecolor")  # type: ignore[arg-type]
+    t = Theme({}, {}, "truecolor")
     with pytest.raises(ValueError, match="Unknown theme color"):
-        t.fg("accent", "x")  # type: ignore[arg-type]
+        t.fg("accent", "x")
 
 
 def test_theme_bg() -> None:
-    bg_colors = {"selectedBg": "#333333"}
-    t = Theme({}, bg_colors, "truecolor")  # type: ignore[arg-type]
+    bg_colors: dict[str, str | int] = {"selectedBg": "#333333"}
+    t = Theme({}, bg_colors, "truecolor")
     result = t.bg("selectedBg", "hi")
     assert "hi" in result
     assert "\x1b[49m" in result  # background reset
 
 
 def test_theme_bold_italic_underline() -> None:
-    t = Theme({}, {}, "truecolor")  # type: ignore[arg-type]
+    t = Theme({}, {}, "truecolor")
     assert t.bold("text")
     assert t.italic("text")
     assert t.underline("text")
 
 
 def test_theme_get_color_mode() -> None:
-    t = Theme({}, {}, "256color")  # type: ignore[arg-type]
+    t = Theme({}, {}, "256color")
     assert t.get_color_mode() == "256color"
 
 
 def test_theme_thinking_border_color() -> None:
-    fg_colors = {
+    fg_colors: dict[str, str | int] = {
         "thinkingOff": "#111111",
         "thinkingMinimal": "#222222",
         "thinkingLow": "#333333",
@@ -210,16 +210,16 @@ def test_theme_thinking_border_color() -> None:
         "thinkingHigh": "#555555",
         "thinkingXhigh": "#666666",
     }
-    t = Theme(fg_colors, {}, "truecolor")  # type: ignore[arg-type]
+    t = Theme(fg_colors, {}, "truecolor")
     for level in ("off", "minimal", "low", "medium", "high", "xhigh"):
-        fn = t.get_thinking_border_color(level)  # type: ignore[arg-type]
+        fn = t.get_thinking_border_color(level)
         result = fn("test")
         assert "test" in result
 
 
 def test_theme_bash_mode_border_color() -> None:
-    fg_colors = {"bashMode": "#ff6600"}
-    t = Theme(fg_colors, {}, "truecolor")  # type: ignore[arg-type]
+    fg_colors: dict[str, str | int] = {"bashMode": "#ff6600"}
+    t = Theme(fg_colors, {}, "truecolor")
     fn = t.get_bash_mode_border_color()
     result = fn("cmd")
     assert "cmd" in result

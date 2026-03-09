@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from pi_coding_agent.modes.interactive.components._theme import theme
@@ -17,6 +18,18 @@ from pi_tui.tui import Container
 
 if TYPE_CHECKING:
     from pi_tui.tui import TUI
+
+
+@dataclass
+class ExtensionInputOptions:
+    """Options for creating an ExtensionInputComponent.
+
+    Port of ExtensionInputOptions from
+    packages/coding-agent/src/modes/interactive/components/extension-input.ts.
+    """
+
+    tui: TUI | None = None
+    timeout: int | None = None
 
 
 class ExtensionInputComponent(Container):

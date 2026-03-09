@@ -4213,9 +4213,7 @@ class TestCustomEditorHandleInput:
 
     def test_paste_image_with_handler(self) -> None:
         """pasteImage keybinding calls on_paste_image and returns."""
-        editor, _kb = _make_custom_editor(
-            kb_matches_side_effect=lambda data, key: key == "pasteImage"
-        )
+        editor, _kb = _make_custom_editor(kb_matches_side_effect=lambda data, key: key == "pasteImage")
         paste_handler = MagicMock()
         editor.on_paste_image = paste_handler
         editor.handle_input("\x1b")
@@ -4223,17 +4221,13 @@ class TestCustomEditorHandleInput:
 
     def test_paste_image_without_handler(self) -> None:
         """pasteImage keybinding with no handler still returns without crashing."""
-        editor, _kb = _make_custom_editor(
-            kb_matches_side_effect=lambda data, key: key == "pasteImage"
-        )
+        editor, _kb = _make_custom_editor(kb_matches_side_effect=lambda data, key: key == "pasteImage")
         editor.on_paste_image = None
         editor.handle_input("\x1b")  # Should not raise
 
     def test_interrupt_calls_on_escape(self) -> None:
         """When interrupt matches and no autocomplete, on_escape is called."""
-        editor, _kb = _make_custom_editor(
-            kb_matches_side_effect=lambda data, key: key == "interrupt"
-        )
+        editor, _kb = _make_custom_editor(kb_matches_side_effect=lambda data, key: key == "interrupt")
         escape_handler = MagicMock()
         editor.on_escape = escape_handler
         editor.handle_input("\x1b")
@@ -4241,9 +4235,7 @@ class TestCustomEditorHandleInput:
 
     def test_interrupt_calls_action_handler_fallback(self) -> None:
         """interrupt with no on_escape falls back to action_handlers['interrupt']."""
-        editor, _kb = _make_custom_editor(
-            kb_matches_side_effect=lambda data, key: key == "interrupt"
-        )
+        editor, _kb = _make_custom_editor(kb_matches_side_effect=lambda data, key: key == "interrupt")
         handler = MagicMock()
         editor.on_action("interrupt", handler)
         editor.on_escape = None
@@ -4252,9 +4244,7 @@ class TestCustomEditorHandleInput:
 
     def test_interrupt_with_autocomplete_showing_calls_super(self) -> None:
         """When autocomplete is showing, interrupt delegates to super."""
-        editor, _kb = _make_custom_editor(
-            kb_matches_side_effect=lambda data, key: key == "interrupt"
-        )
+        editor, _kb = _make_custom_editor(kb_matches_side_effect=lambda data, key: key == "interrupt")
         # Patch is_showing_autocomplete to return True
         with patch.object(type(editor), "is_showing_autocomplete", return_value=True):
             editor.on_escape = MagicMock()
@@ -4264,18 +4254,14 @@ class TestCustomEditorHandleInput:
 
     def test_interrupt_no_handler_calls_super(self) -> None:
         """interrupt with no handler calls super().handle_input."""
-        editor, _kb = _make_custom_editor(
-            kb_matches_side_effect=lambda data, key: key == "interrupt"
-        )
+        editor, _kb = _make_custom_editor(kb_matches_side_effect=lambda data, key: key == "interrupt")
         editor.on_escape = None
         # No action_handlers registered; should fall through to super without error
         editor.handle_input("\x1b")
 
     def test_exit_empty_editor_calls_on_ctrl_d(self) -> None:
         """exit keybinding on empty editor calls on_ctrl_d."""
-        editor, _kb = _make_custom_editor(
-            kb_matches_side_effect=lambda data, key: key == "exit"
-        )
+        editor, _kb = _make_custom_editor(kb_matches_side_effect=lambda data, key: key == "exit")
         ctrl_d_handler = MagicMock()
         editor.on_ctrl_d = ctrl_d_handler
         # Editor is empty by default
@@ -4285,9 +4271,7 @@ class TestCustomEditorHandleInput:
 
     def test_exit_empty_editor_action_handler_fallback(self) -> None:
         """exit on empty editor falls back to action_handlers['exit']."""
-        editor, _kb = _make_custom_editor(
-            kb_matches_side_effect=lambda data, key: key == "exit"
-        )
+        editor, _kb = _make_custom_editor(kb_matches_side_effect=lambda data, key: key == "exit")
         handler = MagicMock()
         editor.on_action("exit", handler)
         editor.on_ctrl_d = None
@@ -4296,9 +4280,7 @@ class TestCustomEditorHandleInput:
 
     def test_exit_non_empty_editor_falls_through(self) -> None:
         """exit on non-empty editor does NOT call ctrl_d handler."""
-        editor, _kb = _make_custom_editor(
-            kb_matches_side_effect=lambda data, key: key == "exit"
-        )
+        editor, _kb = _make_custom_editor(kb_matches_side_effect=lambda data, key: key == "exit")
         handler = MagicMock()
         editor.on_ctrl_d = handler
         editor.set_text("some text")
@@ -4307,9 +4289,7 @@ class TestCustomEditorHandleInput:
 
     def test_custom_action_handler_dispatched(self) -> None:
         """Non-reserved action in action_handlers is dispatched when kb matches."""
-        editor, _kb = _make_custom_editor(
-            kb_matches_side_effect=lambda data, key: key == "myAction"
-        )
+        editor, _kb = _make_custom_editor(kb_matches_side_effect=lambda data, key: key == "myAction")
         handler = MagicMock()
         editor.on_action("myAction", handler)
         editor.handle_input("z")
@@ -4538,9 +4518,7 @@ class TestOAuthSelectorHandleInput:
 
 
 class TestExtensionSelectorHandleInput:
-    def _make_comp(
-        self, options: list[str] | None = None
-    ) -> tuple[ExtensionSelectorComponent, MagicMock, MagicMock]:
+    def _make_comp(self, options: list[str] | None = None) -> tuple[ExtensionSelectorComponent, MagicMock, MagicMock]:
         on_select = MagicMock()
         on_cancel = MagicMock()
         comp = ExtensionSelectorComponent(
@@ -4626,9 +4604,7 @@ class TestExtensionSelectorHandleInput:
         """Providing timeout > 0 and tui creates a CountdownTimer."""
         tui = MagicMock()
         on_cancel = MagicMock()
-        with patch(
-            "pi_coding_agent.modes.interactive.components.extension_selector.CountdownTimer"
-        ) as MockTimer:
+        with patch("pi_coding_agent.modes.interactive.components.extension_selector.CountdownTimer") as MockTimer:
             mock_instance = MagicMock()
             MockTimer.return_value = mock_instance
             comp = ExtensionSelectorComponent(
@@ -4676,6 +4652,7 @@ class TestExtensionEditorOpenExternalEditor:
         with patch.dict("os.environ", {}, clear=True):
             # Ensure neither VISUAL nor EDITOR is set
             import os as _os
+
             _os.environ.pop("VISUAL", None)
             _os.environ.pop("EDITOR", None)
             comp._open_external_editor()  # Should not raise
@@ -4692,9 +4669,11 @@ class TestExtensionEditorOpenExternalEditor:
             mock_run.return_value = mock_result
 
             # Write expected content to a temp file that the editor "would produce"
-            with patch("builtins.open", create=True) as mock_open, patch(
-                "tempfile.NamedTemporaryFile"
-            ) as mock_tmp, patch("os.unlink"):
+            with (
+                patch("builtins.open", create=True) as mock_open,
+                patch("tempfile.NamedTemporaryFile") as mock_tmp,
+                patch("os.unlink"),
+            ):
                 mock_open.return_value.__enter__ = lambda s: s
                 mock_open.return_value.__exit__ = MagicMock(return_value=False)
                 mock_open.return_value.read.return_value = new_content
@@ -4728,11 +4707,16 @@ class TestExtensionEditorOpenExternalEditor:
         kb = MagicMock()
         kb.matches.side_effect = lambda data, key: key == "externalEditor" and data == "\x07"
         comp = ExtensionEditorComponent(
-            tui=tui, keybindings=kb, title="T", prefill=None,
-            on_submit=MagicMock(), on_cancel=MagicMock(),
+            tui=tui,
+            keybindings=kb,
+            title="T",
+            prefill=None,
+            on_submit=MagicMock(),
+            on_cancel=MagicMock(),
         )
         with patch.dict("os.environ", {}, clear=True):
             import os as _os
+
             _os.environ.pop("VISUAL", None)
             _os.environ.pop("EDITOR", None)
             comp.handle_input("\x07")  # Should not raise
@@ -4853,9 +4837,7 @@ class TestScopedModelsSelectorHandleInput:
         )
         # Find the index of "y" in filtered items after building
         y_full = "anthropic/y"
-        idx_y = next(
-            (i for i, item in enumerate(comp._filtered_items) if item.full_id == y_full), -1
-        )
+        idx_y = next((i for i, item in enumerate(comp._filtered_items) if item.full_id == y_full), -1)
         assert idx_y >= 1, "y must not be first for alt+up to work"
         comp._selected_index = idx_y
         comp.handle_input("\x1b[1;3A")  # alt+up
@@ -5478,8 +5460,9 @@ class TestDeleteSessionFileNew:
         assert result["method"] == "unlink"
 
     def test_unlink_failure_returns_error(self) -> None:
-        with patch("subprocess.run", side_effect=FileNotFoundError), patch(
-            "os.unlink", side_effect=OSError("Permission denied")
+        with (
+            patch("subprocess.run", side_effect=FileNotFoundError),
+            patch("os.unlink", side_effect=OSError("Permission denied")),
         ):
             result = _delete_session_file("/some/session.json")
         assert result["ok"] is False
@@ -5929,10 +5912,7 @@ class TestTreeListApplyFilter:
 
 class TestTreeListHandleInput:
     def _make_list(self) -> _TreeList:
-        entries = [
-            _make_message_entry(f"e{i}", "user", f"message {i}")
-            for i in range(5)
-        ]
+        entries = [_make_message_entry(f"e{i}", "user", f"message {i}") for i in range(5)]
         nodes = [_make_tree_node_v2(e) for e in entries]
         return _TreeList(nodes, "e0", 20)
 
@@ -6048,10 +6028,7 @@ class TestTreeListHandleInput:
 
 class TestTreeSelectorComponentNew:
     def _make_comp(self) -> TreeSelectorComponent:
-        entries = [
-            _make_message_entry(f"e{i}", "user", f"msg {i}")
-            for i in range(3)
-        ]
+        entries = [_make_message_entry(f"e{i}", "user", f"msg {i}") for i in range(3)]
         tree = [_make_tree_node_v2(e) for e in entries]
         return TreeSelectorComponent(
             tree=tree,

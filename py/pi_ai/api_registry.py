@@ -24,6 +24,13 @@ StreamSimpleFunction = Callable[
     AsyncIterator[AssistantMessageEvent],
 ]
 
+# ApiStreamFunction / ApiStreamSimpleFunction are internal wrappers that
+# erase the generic TApi/TOptions parameters.  In TS they are distinct
+# types; in Python, StreamFunction already uses a concrete Model (no
+# generic), so the aliases are identical but kept for parity.
+ApiStreamFunction = StreamFunction
+ApiStreamSimpleFunction = StreamSimpleFunction
+
 
 @dataclass
 class ApiProvider:

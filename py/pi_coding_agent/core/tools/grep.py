@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import json
 import shutil
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -12,7 +14,51 @@ from pi_agent.types import AgentTool, AgentToolResult, AgentToolUpdateCallback
 from pi_ai.types import TextContent
 
 from .path_utils import resolve_to_cwd
-from .truncate import truncate_line
+from .truncate import TruncationResult, truncate_line
+
+
+@dataclass
+class GrepToolInput:
+    """Input parameters for the grep tool."""
+
+    pattern: str
+    path: str | None = None
+    glob: str | None = None
+    ignore_case: bool = False
+    literal: bool = False
+    context: int | None = None
+    limit: int | None = None
+
+
+@dataclass
+class GrepToolDetails:
+    """Details returned by the grep tool."""
+
+    truncation: TruncationResult | None = None
+    match_limit_reached: int | None = None
+    lines_truncated: bool | None = None
+
+
+@dataclass
+class GrepOperations:
+    """Pluggable operations for the grep tool.
+
+    Override to delegate search to remote systems (e.g., SSH).
+    """
+
+    is_directory: Callable[[str], Awaitable[bool] | bool]
+    """Check if path is a directory. Raises if path doesn't exist."""
+    read_file: Callable[[str], Awaitable[str] | str]
+    """Read file contents for context lines."""
+
+
+@dataclass
+class GrepToolOptions:
+    """Options for the grep tool."""
+
+    operations: GrepOperations | None = None
+    """Custom operations for grep. Default: local filesystem + ripgrep."""
+
 
 DEFAULT_LIMIT = 100
 

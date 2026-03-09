@@ -42,6 +42,14 @@ from pi_coding_agent.core.extensions.types import (
 
 ExtensionErrorListener = Callable[[ExtensionError], None]
 
+# Handler type aliases (from extensions/runner.ts)
+NewSessionHandler = Callable[..., Any]  # (options?) -> Promise<{cancelled: bool}>
+ForkHandler = Callable[[str], Any]  # (entryId) -> Promise<{cancelled: bool}>
+NavigateTreeHandler = Callable[..., Any]  # (targetId, options?) -> Promise<{cancelled: bool}>
+SwitchSessionHandler = Callable[[str], Any]  # (sessionPath) -> Promise<{cancelled: bool}>
+ReloadHandler = Callable[[], Any]  # () -> Promise<void>
+ShutdownHandler = Callable[[], None]  # () -> void
+
 
 # ============================================================================
 # Helper function

@@ -21,6 +21,10 @@ watcher = ["watchdog>=3.0"]
 [project.scripts]
 pi = "pi_coding_agent.main:main"
 
+[tool.setuptools.packages.find]
+where = [".."]
+include = ["pi_coding_agent*"]
+
 [tool.uv.sources]
 pi-agent = { workspace = true }
 pi-ai = { workspace = true }

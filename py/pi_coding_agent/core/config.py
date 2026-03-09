@@ -6,6 +6,9 @@ Port of packages/coding-agent/src/core/config.ts.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
+
+InstallMethod = Literal["bun-binary", "npm", "pnpm", "yarn", "bun", "unknown"]
 
 CONFIG_DIR_NAME = ".pi"
 

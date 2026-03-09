@@ -12,9 +12,20 @@ import re
 import sys
 from pathlib import Path
 
+# Map compound acronyms to single capitalized words before camelCase splitting
+_ACRONYM_NORMALIZE: list[tuple[str, str]] = [
+    ("OAuth", "Oauth"),
+    ("GitHub", "Github"),
+    ("OpenAI", "Openai"),
+    ("iTerm", "Iterm"),
+    ("ITerm", "Iterm"),
+]
+
 
 def _camel_to_snake(name: str) -> str:
-    """Convert camelCase to snake_case."""
+    """Convert camelCase to snake_case, handling known acronyms."""
+    for acronym, normalized in _ACRONYM_NORMALIZE:
+        name = name.replace(acronym, normalized)
     s1 = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", name)
     return re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
 

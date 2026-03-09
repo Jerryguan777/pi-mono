@@ -6,5 +6,9 @@ requires-python = ">=3.12"
 license = "MIT"
 dependencies = ["pi-ai", "httpx"]
 
+[tool.setuptools.packages.find]
+where = [".."]
+include = ["pi_agent*"]
+
 [tool.uv.sources]
 pi-ai = { workspace = true }

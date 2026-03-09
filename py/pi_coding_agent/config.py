@@ -23,6 +23,14 @@ ENV_AGENT_DIR: str = f"{APP_NAME.upper()}_CODING_AGENT_DIR"
 
 DEFAULT_SHARE_VIEWER_URL: str = "https://pi.dev/session/"
 
+# Python is never running as a Bun binary or Bun runtime
+IS_BUN_BINARY: bool = False
+IS_BUN_RUNTIME: bool = False
+
+# snake_case aliases for parity with TS camelCase exports
+is_bun_binary = IS_BUN_BINARY
+is_bun_runtime = IS_BUN_RUNTIME
+
 # ===========================================================================
 # Install Method Detection
 # ===========================================================================
@@ -78,6 +86,31 @@ def get_themes_dir() -> Path:
 def get_export_template_dir() -> Path:
     """Return path to HTML export template directory."""
     return get_package_dir() / "data" / "export-html"
+
+
+def get_package_json_path() -> Path:
+    """Return path to package.json (or pyproject.toml in Python)."""
+    return get_package_dir() / "pyproject.toml"
+
+
+def get_readme_path() -> Path:
+    """Return path to README.md."""
+    return (get_package_dir() / "README.md").resolve()
+
+
+def get_docs_path() -> Path:
+    """Return path to docs directory."""
+    return (get_package_dir() / "docs").resolve()
+
+
+def get_examples_path() -> Path:
+    """Return path to examples directory."""
+    return (get_package_dir() / "examples").resolve()
+
+
+def get_changelog_path() -> Path:
+    """Return path to CHANGELOG.md."""
+    return (get_package_dir() / "CHANGELOG.md").resolve()
 
 
 # ===========================================================================

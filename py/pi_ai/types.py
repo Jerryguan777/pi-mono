@@ -91,6 +91,14 @@ class StreamOptions:
     metadata: dict[str, Any] | None = None
 
 
+# ProviderStreamOptions is StreamOptions with arbitrary extra keys.
+# In TS this is `StreamOptions & Record<string, unknown>`.
+# In Python we use a subclass that accepts extra kwargs via a dict field.
+@dataclass
+class ProviderStreamOptions(StreamOptions):
+    extra: dict[str, Any] = field(default_factory=dict)
+
+
 @dataclass
 class SimpleStreamOptions(StreamOptions):
     reasoning: ThinkingLevel | None = None

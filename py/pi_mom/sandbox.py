@@ -37,6 +37,14 @@ class ExecResult:
     code: int
 
 
+@dataclass
+class ExecOptions:
+    """Options for command execution."""
+
+    timeout: int | None = None
+    signal: asyncio.Event | None = None
+
+
 _MAX_OUTPUT_BYTES = 10 * 1024 * 1024  # 10 MB per stream
 
 

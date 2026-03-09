@@ -82,14 +82,14 @@ class TestShouldCompact:
 
 
 class TestFindCutPoint:
-    def _make_user_entry(self, entry_id: str, text: str = "hello") -> dict:
+    def _make_user_entry(self, entry_id: str, text: str = "hello") -> dict[str, object]:
         class Msg:
             role = "user"
             content = text
 
         return {"type": "message", "id": entry_id, "message": Msg()}
 
-    def _make_assistant_entry(self, entry_id: str, text: str = "hi") -> dict:
+    def _make_assistant_entry(self, entry_id: str, text: str = "hi") -> dict[str, object]:
         class TextBlock:
             type = "text"
 
@@ -227,7 +227,7 @@ class TestSerializeConversation:
             role = "user"
             content = "Hello"
 
-        result = serialize_conversation([Msg()])  # type: ignore[list-item]
+        result = serialize_conversation([Msg()])
         assert "[User]: Hello" in result
 
     def test_assistant_message(self) -> None:
@@ -239,7 +239,7 @@ class TestSerializeConversation:
             role = "assistant"
             content: ClassVar[list[object]] = [TextBlock()]
 
-        result = serialize_conversation([Msg()])  # type: ignore[list-item]
+        result = serialize_conversation([Msg()])
         assert "[Assistant]: Hi there" in result
 
     def test_tool_result_message(self) -> None:
@@ -251,7 +251,7 @@ class TestSerializeConversation:
             role = "toolResult"
             content: ClassVar[list[object]] = [TextBlock()]
 
-        result = serialize_conversation([Msg()])  # type: ignore[list-item]
+        result = serialize_conversation([Msg()])
         assert "[Tool result]: result data" in result
 
     def test_empty_messages(self) -> None:

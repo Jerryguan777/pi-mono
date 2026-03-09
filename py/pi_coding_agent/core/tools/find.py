@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import glob as glob_module
 import shutil
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +14,46 @@ from pi_agent.types import AgentTool, AgentToolResult, AgentToolUpdateCallback
 from pi_ai.types import TextContent
 
 from .path_utils import resolve_to_cwd
+from .truncate import TruncationResult
+
+
+@dataclass
+class FindToolInput:
+    """Input parameters for the find tool."""
+
+    pattern: str
+    path: str | None = None
+    limit: int | None = None
+
+
+@dataclass
+class FindToolDetails:
+    """Details returned by the find tool."""
+
+    truncation: TruncationResult | None = None
+    result_limit_reached: int | None = None
+
+
+@dataclass
+class FindOperations:
+    """Pluggable operations for the find tool.
+
+    Override to delegate file search to remote systems (e.g., SSH).
+    """
+
+    exists: Callable[[str], Awaitable[bool] | bool]
+    """Check if path exists."""
+    glob: Callable[[str, str, dict[str, Any]], Awaitable[list[str]] | list[str]]
+    """Find files matching glob pattern. Returns relative paths."""
+
+
+@dataclass
+class FindToolOptions:
+    """Options for the find tool."""
+
+    operations: FindOperations | None = None
+    """Custom operations for find. Default: local filesystem + fd."""
+
 
 DEFAULT_LIMIT = 1000
 

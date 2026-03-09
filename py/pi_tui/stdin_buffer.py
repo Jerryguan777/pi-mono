@@ -23,7 +23,7 @@ import re
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, TypedDict
 
 ESC = "\x1b"
 BRACKETED_PASTE_START = "\x1b[200~"
@@ -197,6 +197,20 @@ def _extract_complete_sequences(buffer: str) -> tuple[list[str], str]:
             pos += 1
 
     return sequences, ""
+
+
+class StdinBufferEventMap(TypedDict, total=False):
+    """Event map for StdinBuffer.
+
+    Maps event names to their argument types, mirroring the TS
+    ``StdinBufferEventMap`` type used with ``EventEmitter``.
+    In the Python port the buffer uses ``on_data`` / ``on_paste``
+    callbacks instead of an emitter, but this type is kept for
+    API parity.
+    """
+
+    data: tuple[str]
+    paste: tuple[str]
 
 
 @dataclass

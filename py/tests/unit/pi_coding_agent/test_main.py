@@ -227,7 +227,7 @@ async def test_prepare_initial_message_no_files() -> None:
 async def test_prepare_initial_message_with_file(tmp_path: pytest.TempdirFactory) -> None:
     from pathlib import Path
 
-    f = Path(str(tmp_path)) / "test.txt"  # type: ignore[call-overload]
+    f = Path(str(tmp_path)) / "test.txt"
     f.write_text("content", encoding="utf-8")
 
     msg, _images, remaining = await _prepare_initial_message([str(f)], ["Hello"])

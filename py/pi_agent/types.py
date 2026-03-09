@@ -25,6 +25,14 @@ from pi_ai.types import (
 # ThinkingLevel for agents: extends pi_ai.ThinkingLevel with "off" (no reasoning)
 ThinkingLevel = Literal["off", "minimal", "low", "medium", "high", "xhigh"]
 
+
+# CustomAgentMessages: empty by default — apps extend by subclassing to add
+# custom message types (mirrors TS declaration-merging pattern).
+@dataclass
+class CustomAgentMessages:
+    pass
+
+
 # AgentMessage: union of standard LLM messages; apps can widen this type alias
 AgentMessage = Message
 

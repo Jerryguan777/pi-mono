@@ -23,13 +23,34 @@ from pi_coding_agent.core.skills import Skill, load_skills
 
 
 @dataclass
+class ResourceCollision:
+    """A collision between two resources of the same name."""
+
+    resource_type: str  # "extension" | "skill" | "prompt" | "theme"
+    name: str
+    winner_path: str
+    loser_path: str
+    winner_source: str | None = None
+    loser_source: str | None = None
+
+
+@dataclass
 class ResourceDiagnostic:
     """A diagnostic message from resource loading."""
 
-    type: str  # "warning" | "collision"
+    type: str  # "warning" | "error" | "collision"
     message: str
     path: str | None = None
-    collision: dict[str, Any] | None = None
+    collision: ResourceCollision | None = None
+
+
+@dataclass
+class ResourceExtensionPaths:
+    """Paths provided by extensions for additional resources."""
+
+    skill_paths: list[dict[str, Any]] | None = None  # [{path, metadata}]
+    prompt_paths: list[dict[str, Any]] | None = None
+    theme_paths: list[dict[str, Any]] | None = None
 
 
 # ============================================================================

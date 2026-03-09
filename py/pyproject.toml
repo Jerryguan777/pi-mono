@@ -6,7 +6,11 @@ requires-python = ">=3.12"
 license = "MIT"
 dependencies = [
     "pi-ai",
+    "pi-agent",
     "pi-tui",
+    "pi-coding-agent",
+    "pi-mom",
+    "pi-pods",
 ]
 
 [tool.uv.sources]
@@ -14,6 +18,8 @@ pi-ai = { workspace = true }
 pi-agent = { workspace = true }
 pi-tui = { workspace = true }
 pi-coding-agent = { workspace = true }
+pi-mom = { workspace = true }
+pi-pods = { workspace = true }
 
 [tool.uv.workspace]
 members = [

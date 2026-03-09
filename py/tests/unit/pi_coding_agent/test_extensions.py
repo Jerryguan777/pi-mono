@@ -69,7 +69,7 @@ class TestCreateExtensionRuntime:
     def test_stub_methods_raise(self) -> None:
         runtime = create_extension_runtime()
         with pytest.raises(RuntimeError):
-            runtime.send_message("hello")  # type: ignore[call-arg]
+            runtime.send_message("hello")
 
 
 # ============================================================================

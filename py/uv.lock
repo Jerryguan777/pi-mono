@@ -1141,7 +1141,7 @@ provides-extras = ["watcher"]
 [[package]]
 name = "pi-mom"
 version = "0.1.0"
-source = { virtual = "pi_mom" }
+source = { editable = "pi_mom" }
 dependencies = [
     { name = "aiohttp" },
     { name = "croniter" },
@@ -1166,7 +1166,11 @@ name = "pi-mono"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "pi-agent" },
     { name = "pi-ai" },
+    { name = "pi-coding-agent" },
+    { name = "pi-mom" },
+    { name = "pi-pods" },
     { name = "pi-tui" },
 ]
 
@@ -1185,7 +1189,11 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "pi-agent", editable = "pi_agent" },
     { name = "pi-ai", editable = "pi_ai" },
+    { name = "pi-coding-agent", editable = "pi_coding_agent" },
+    { name = "pi-mom", editable = "pi_mom" },
+    { name = "pi-pods", editable = "pi_pods" },
     { name = "pi-tui", editable = "pi_tui" },
 ]
 
@@ -1205,7 +1213,7 @@ dev = [
 [[package]]
 name = "pi-pods"
 version = "0.1.0"
-source = { virtual = "pi_pods" }
+source = { editable = "pi_pods" }
 dependencies = [
     { name = "rich" },
     { name = "typer" },

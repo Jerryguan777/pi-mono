@@ -16,6 +16,22 @@ import os
 import subprocess
 import sys
 from dataclasses import dataclass
+from typing import Protocol
+
+
+class ClipboardModule(Protocol):
+    """Protocol for native clipboard image access.
+
+    Port of ClipboardModule from packages/coding-agent/src/utils/clipboard-native.ts.
+    """
+
+    def has_image(self) -> bool:
+        """Return True if the clipboard contains an image."""
+        ...
+
+    async def get_image_binary(self) -> list[int]:
+        """Return the clipboard image as a list of byte values."""
+        ...
 
 
 @dataclass

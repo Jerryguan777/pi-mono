@@ -1,6 +1,7 @@
 """Core subpackage for pi_coding_agent — session management, bash execution, extensions, and tools."""
 
 from pi_coding_agent.core.agent_session import (
+    DEFAULT_THINKING_LEVEL,
     AgentSession,
     AgentSessionConfig,
     AgentSessionEvent,
@@ -69,6 +70,10 @@ from pi_coding_agent.core.config import (
 )
 from pi_coding_agent.core.event_bus import EventBus, create_event_bus
 from pi_coding_agent.core.exec import ExecOptions, ExecResult, exec_command
+from pi_coding_agent.core.export_html.ansi_to_html import (
+    ansi_lines_to_html,
+    ansi_to_html,
+)
 from pi_coding_agent.core.extensions import (
     Extension,
     ExtensionActions,
@@ -97,6 +102,10 @@ from pi_coding_agent.core.extensions import (
     wrap_registered_tools,
     wrap_tool_with_extensions,
     wrap_tools_with_extensions,
+)
+from pi_coding_agent.core.keybindings import (
+    DEFAULT_APP_KEYBINDINGS,
+    DEFAULT_KEYBINDINGS,
 )
 from pi_coding_agent.core.messages import (
     BRANCH_SUMMARY_PREFIX,
@@ -150,11 +159,21 @@ from pi_coding_agent.core.prompt_templates import (
     parse_command_args,
     substitute_args,
 )
+from pi_coding_agent.core.resolve_config_value import (
+    clear_config_value_cache,
+    resolve_config_value,
+    resolve_headers,
+)
 from pi_coding_agent.core.resource_loader import (
     DefaultResourceLoader,
     DefaultResourceLoaderOptions,
     ResourceDiagnostic,
     ResourceLoader,
+)
+from pi_coding_agent.core.sdk import (
+    CreateAgentSessionOptions,
+    CreateAgentSessionResult,
+    create_agent_session,
 )
 from pi_coding_agent.core.session_manager import (
     CURRENT_SESSION_VERSION,
@@ -204,15 +223,21 @@ from pi_coding_agent.core.settings_manager import (
 )
 from pi_coding_agent.core.skills import (
     LoadSkillsResult,
+    ParsedSkillBlock,
     Skill,
     SkillFrontmatter,
     format_skills_for_prompt,
     load_skills,
     load_skills_from_dir,
+    parse_skill_block,
 )
 from pi_coding_agent.core.system_prompt import (
     BuildSystemPromptOptions,
     build_system_prompt,
+)
+from pi_coding_agent.core.timings import (
+    print_timings,
+    time,
 )
 from pi_coding_agent.core.tools import (
     BashTool,
@@ -232,24 +257,27 @@ __all__ = [
     "COMPACTION_SUMMARY_SUFFIX",
     "CONFIG_DIR_NAME",
     "CURRENT_SESSION_VERSION",
+    "DEFAULT_APP_KEYBINDINGS",
     "DEFAULT_COMPACTION_SETTINGS",
+    "DEFAULT_KEYBINDINGS",
     "DEFAULT_MODEL_PER_PROVIDER",
+    "DEFAULT_THINKING_LEVEL",
     "SUMMARIZATION_SYSTEM_PROMPT",
     # agent_session
     "AgentSession",
     "AgentSessionConfig",
     "AgentSessionEvent",
     "AgentSessionEventListener",
-    "AutoCompactionEndEvent",
-    "AutoCompactionStartEvent",
-    "AutoRetryEndEvent",
-    "AutoRetryStartEvent",
     # auth_storage
     "ApiKeyCredential",
     "AuthCredential",
     "AuthStorage",
     "AuthStorageBackend",
     "AuthStorageData",
+    "AutoCompactionEndEvent",
+    "AutoCompactionStartEvent",
+    "AutoRetryEndEvent",
+    "AutoRetryStartEvent",
     # messages
     "BashExecutionMessage",
     # bash_executor
@@ -274,6 +302,9 @@ __all__ = [
     "CompactionSettings",
     "CompactionSummaryMessage",
     "ContextUsageEstimate",
+    # sdk
+    "CreateAgentSessionOptions",
+    "CreateAgentSessionResult",
     "CustomEntry",
     "CustomMessage",
     "CustomMessageEntry",
@@ -322,6 +353,7 @@ __all__ = [
     "LoadSkillsResult",
     "LsTool",
     "MarkdownSettings",
+    "MissingSourceAction",
     "ModelChangeEntry",
     # model_registry
     "ModelOverride",
@@ -332,6 +364,8 @@ __all__ = [
     "PackageSource",
     "PackageSourceObject",
     "ParsedModelResult",
+    # skills
+    "ParsedSkillBlock",
     "PathMetadata",
     "ProgressCallback",
     "ProgressEvent",
@@ -365,7 +399,6 @@ __all__ = [
     "SettingsManager",
     "SettingsScope",
     "SettingsStorage",
-    # skills
     "Skill",
     "SkillFrontmatter",
     "TerminalSettings",
@@ -374,15 +407,19 @@ __all__ = [
     "ToolDefinition",
     "WriteTool",
     # functions
+    "ansi_lines_to_html",
+    "ansi_to_html",
     "bash_execution_to_text",
     "build_session_context",
     "build_system_prompt",
     "calculate_context_tokens",
     "clear_api_key_cache",
+    "clear_config_value_cache",
     "collect_entries_for_branch_summary",
     "compact",
     "compute_file_lists",
     "convert_to_llm",
+    "create_agent_session",
     "create_branch_summary_message",
     "create_compaction_summary_message",
     "create_custom_message",
@@ -422,14 +459,19 @@ __all__ = [
     "parse_command_args",
     "parse_model_pattern",
     "parse_session_entries",
+    "parse_skill_block",
     "prepare_branch_entries",
     "prepare_compaction",
+    "print_timings",
     "resolve_cli_model",
+    "resolve_config_value",
+    "resolve_headers",
     "resolve_model_scope",
     "restore_model_from_session",
     "serialize_conversation",
     "should_compact",
     "substitute_args",
+    "time",
     "wrap_registered_tool",
     "wrap_registered_tools",
     "wrap_tool_with_extensions",

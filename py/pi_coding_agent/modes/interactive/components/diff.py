@@ -4,8 +4,19 @@ from __future__ import annotations
 
 import difflib
 import re
+from dataclasses import dataclass
 
 from pi_coding_agent.modes.interactive.components._theme import theme
+
+
+@dataclass
+class RenderDiffOptions:
+    """Options for render_diff().
+
+    Port of RenderDiffOptions from packages/coding-agent/src/modes/interactive/components/diff.ts.
+    """
+
+    file_path: str | None = None
 
 
 def _parse_diff_line(line: str) -> tuple[str, str, str] | None:

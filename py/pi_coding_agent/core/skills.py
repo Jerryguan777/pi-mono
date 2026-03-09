@@ -6,12 +6,49 @@ Port of packages/coding-agent/src/core/skills.ts.
 from __future__ import annotations
 
 import os
+import re as _re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from pi_coding_agent.core._frontmatter import parse_frontmatter
 from pi_coding_agent.core.config import CONFIG_DIR_NAME, get_agent_dir
+
+# ============================================================================
+# Skill Block Parsing
+# ============================================================================
+
+_SKILL_BLOCK_RE = _re.compile(r'^<skill name="([^"]+)" location="([^"]+)">\n([\s\S]*?)\n</skill>(?:\n\n([\s\S]+))?$')
+
+
+@dataclass
+class ParsedSkillBlock:
+    """Parsed skill block from a user message."""
+
+    name: str
+    location: str
+    content: str
+    user_message: str | None
+
+
+def parse_skill_block(text: str) -> ParsedSkillBlock | None:
+    """Parse a skill block from message text.
+
+    Returns None if the text does not contain a skill block.
+    """
+    match = _SKILL_BLOCK_RE.match(text)
+    if not match:
+        return None
+    user_msg = match.group(4)
+    if user_msg is not None:
+        user_msg = user_msg.strip() or None
+    return ParsedSkillBlock(
+        name=match.group(1),
+        location=match.group(2),
+        content=match.group(3),
+        user_message=user_msg,
+    )
+
 
 # ============================================================================
 # Constants
@@ -46,6 +83,24 @@ class Skill:
     base_dir: str
     source: str
     disable_model_invocation: bool
+
+
+@dataclass
+class LoadSkillsFromDirOptions:
+    """Options for loading skills from a directory."""
+
+    dir: str = ""
+    source: str = ""
+
+
+@dataclass
+class LoadSkillsOptions:
+    """Options for loading skills from all configured locations."""
+
+    cwd: str | None = None  # Default: cwd
+    agent_dir: str | None = None  # Default: ~/.pi/agent
+    skill_paths: list[str] | None = None  # Explicit skill paths
+    include_defaults: bool = True
 
 
 @dataclass
