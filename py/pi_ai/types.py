@@ -281,7 +281,7 @@ class ToolCallEndEvent:
 @dataclass
 class DoneEvent:
     type: Literal["done"] = "done"
-    reason: Literal["stop", "length", "toolUse"] = "stop"
+    reason: StopReason = "stop"
     message: AssistantMessage = field(default_factory=AssistantMessage)
 
 

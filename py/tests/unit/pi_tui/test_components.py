@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-import pytest
-
 from pi_tui.components.box import Box
 from pi_tui.components.loader import Loader
 from pi_tui.components.select_list import SelectItem, SelectList, SelectListTheme
@@ -13,7 +11,6 @@ from pi_tui.components.spacer import Spacer
 from pi_tui.components.text import Text
 from pi_tui.components.truncated_text import TruncatedText
 from pi_tui.utils import visible_width
-
 
 # ---------------------------------------------------------------------------
 # Helpers

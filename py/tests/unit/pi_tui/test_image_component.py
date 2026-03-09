@@ -4,15 +4,12 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-import pytest
-
 from pi_tui.components.image import Image, ImageOptions, ImageTheme
 from pi_tui.terminal_image import (
     ImageDimensions,
     RenderResult,
     TerminalCapabilities,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -109,7 +106,7 @@ class TestImageConstruction:
     def test_explicit_dimensions_skips_detection(self) -> None:
         """When dimensions is explicitly provided, get_image_dimensions is not called."""
         dims = ImageDimensions(width_px=500, height_px=400)
-        with patch("pi_tui.components.image.get_image_dimensions") as mock_get_dims:
+        with patch("pi_tui.components.image.get_image_dimensions"):
             img = Image("b64data", "image/png", _make_theme(), dimensions=dims)
             # get_image_dimensions is not called because we short-circuit with `or`
             # but due to how `or` works, if dims is provided it won't be called

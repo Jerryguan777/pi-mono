@@ -57,32 +57,6 @@ TS source code is in the `packages/` directory and serves as the rewrite referen
 
 **Principle: Don't try to reproduce TS type gymnastics 1:1. `dataclass` + `Literal` + `isinstance` covers 90% of cases with cleaner code.**
 
-### Type Assertions & Non-null Assertions
-
-TS has compile-time-only type narrowing constructs that produce **zero runtime code**. Python has no direct equivalent — never use `assert` as a substitute, because `assert` is stripped by `python -O`.
-
-| TS Pattern | Incorrect Python | Correct Python |
-|------------|-----------------|----------------|
-| `value!` (non-null assertion) | `assert value is not None` | `if value is None: raise ValueError(...)` |
-| `msg as AssistantMessage` (type assertion) | `assert isinstance(msg, AssistantMessage)` | `if not isinstance(msg, AssistantMessage): raise TypeError(...)` |
-| `x as unknown as T` (double cast) | N/A | Restructure logic to avoid the cast |
-
-**Key difference**: TS `!` and `as` are erased at compile time and never execute. Python `assert` is a runtime statement that gets **silently removed** when running with `-O` (optimize). Using `assert` for type narrowing creates code that works in dev but may break silently in production.
-
-**Rule**: Use `assert` only for development-time invariant checks that are truly optional. For type narrowing and input validation, always use explicit `if` + `raise`.
-
-### Type Annotations — Avoid `Any`
-
-TS has explicit types for callbacks, events, and signals. When porting to Python, always use the concrete type rather than `Any`.
-
-| TS Type | Incorrect Python | Correct Python |
-|---------|-----------------|----------------|
-| `AbortSignal` | `signal: Any` | `signal: asyncio.Event \| None` |
-| `(payload: unknown) => void` | `on_payload: Any` | `on_payload: Callable[[Any], None] \| None` |
-| `Record<string, string>` | `headers: Any` | `headers: dict[str, str] \| None` |
-
-**Rule**: Only use `Any` when the TS type is truly `any` / `unknown` with no further structure. If TS provides a function signature, callback shape, or known type, translate it to the Python equivalent.
-
 ### Async & Streaming
 
 | TS Pattern | Python Equivalent |
@@ -185,80 +159,13 @@ python scripts/check_parity.py  # TS vs Python API parity check
 - **Output**: Reports missing, extra, and name-mismatched items
 - **Usage**: `python scripts/check_parity.py ../../packages/ai/src pi_ai`
 
-## Parallel Branch Development Rules
-
-When multiple branches are developed in parallel (via worktrees), the following rules prevent post-merge breakage.
-
-### 1. Shared Type Contracts Must Be Exact
-
-Each branch must use **the exact same type definitions** for shared types (e.g. types defined in `pi_ai/types.py`). Do not redefine, narrow, or widen shared types in branch-local stubs.
-
-**Bad**: Branch A defines `DoneEvent.reason: Literal["stop", "length", "toolUse"]`, Branch B passes `"error"` and adds `# type: ignore`.
-**Good**: All branches use the canonical `StopReason = Literal["stop", "length", "toolUse", "error", "aborted"]` and `DoneEvent.reason: StopReason`.
-
-**Rule**: If a shared type needs to be wider than what the core branch defined, update the core branch first (or coordinate via the issue), don't silently suppress with `type: ignore`.
-
-### 2. Naming Must Be Agreed Before Work Starts
-
-Class names, type alias names, and function signatures that cross package boundaries must be specified in the GitHub Issue. Each issue should include a **"Shared Interface Contract"** section listing:
-
-- Exact class/type names to import (e.g. `ToolCallStartEvent`, not `ToolcallStartEvent`)
-- Exact callback signatures (e.g. `Callable[[str, Model, AssistantMessage], str]`, not `Callable[[str], str]`)
-- Exact type alias names (e.g. `UsageCost`, not `CostBreakdown`)
-
-**Rule**: When in doubt, read the already-merged core types module (`pi_ai/types.py`) to get the canonical names. Never invent your own variant.
-
-### 3. Never Use `# type: ignore` to Suppress Cross-Module Type Mismatches
-
-`# type: ignore` is acceptable only for:
-- SDK library issues (e.g. OpenAI SDK overloaded `create()` with `**kwargs`)
-- Genuinely untyped third-party code
-
-It is **not acceptable** for:
-- Mismatched signatures between pi_ai modules (fix the signature instead)
-- Wrong enum/Literal values (widen the type definition instead)
-
-**Rule**: If you need `# type: ignore[arg-type]` when calling a function from another pi_ai module, your types are out of sync — fix them.
-
-### 4. Callback Signature Compatibility
-
-When a function accepts a callback parameter, all callers must match the full signature. Don't pass a simpler function and expect it to work.
-
-**Bad**: `transform_messages(msgs, model, lambda id: sanitize(id))` when the signature requires `Callable[[str, Model, AssistantMessage], str]`
-**Good**: `transform_messages(msgs, model, lambda tc_id, _m, _a: sanitize(tc_id))`
-
-### 5. Quality Checks Must Actually Pass
-
-Before declaring a branch complete, run the full quality suite **from the `py/` directory** and verify **zero errors**:
-
-```bash
-cd py
-uv run ruff check .
-uv run ruff format --check .
-uv run mypy --strict .
-uv run pytest --cov --cov-fail-under=80 -v
-```
-
-Common issues that slip through:
-- **I001**: Import blocks not sorted (run `ruff check --fix .` to auto-fix)
-- **F401**: Unused imports (remove them)
-- **E741**: Ambiguous variable names like `l`, `O`, `I` (use `lbl`, `obj`, `idx` etc.)
-- **RUF003**: Non-ASCII punctuation in comments (use `-` not `–`)
-- **SIM117**: Nested `with` statements (combine with `with (ctx1, ctx2):` syntax)
-- **E501**: Lines over 120 chars (break long dict literals across lines)
-
-### 6. Code Comments Must Be in English
-
-All code comments, docstrings, and inline documentation must be written in English. Chinese or other languages are not allowed in source code.
-
 ## Workflow
 
 1. Read the task scope and acceptance criteria from the GitHub Issue
 2. Read the corresponding TS source files to understand interfaces and behavior
-3. **Read the already-merged core types** (e.g. `pi_ai/types.py`) to verify exact names and signatures of shared types you will import
-4. Run `python scripts/extract_public_api.py` to generate the API checklist
-5. Define Python interfaces (Protocol / ABC) first, then implement
-6. Write tests immediately after implementing each function/class
-7. Fill in MAPPING.md
-8. Run all quality checks (ruff, mypy, pytest) — **must be zero errors, not just "mostly passes"**
-9. Commit and push to the current branch
+3. Run `python scripts/extract_public_api.py` to generate the API checklist
+4. Define Python interfaces (Protocol / ABC) first, then implement
+5. Write tests immediately after implementing each function/class
+6. Fill in MAPPING.md
+7. Run all quality checks (ruff, mypy, pytest)
+8. Commit and push to the current branch

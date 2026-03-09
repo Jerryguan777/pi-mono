@@ -84,7 +84,9 @@ def convert_messages(model: Model, context: Context) -> list[dict[str, Any]]:
             return id_
         return re.sub(r"[^a-zA-Z0-9_-]", "_", id_)[:64]
 
-    transformed_messages = transform_messages(context.messages, model, normalize_tool_call_id)
+    transformed_messages = transform_messages(
+        context.messages, model, lambda tc_id, _m, _a: normalize_tool_call_id(tc_id)
+    )
 
     for msg in transformed_messages:
         if msg.role == "user":

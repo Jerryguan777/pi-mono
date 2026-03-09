@@ -129,7 +129,6 @@ EMPTY_STREAM_BASE_DELAY_MS = 500
 CLAUDE_THINKING_BETA_HEADER = "interleaved-thinking-2025-05-14"
 
 
-
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
@@ -763,9 +762,7 @@ def stream_google_gemini_cli(
                                             )
                                             fc_name = func_call.get("name", "")
                                             tool_call_id = (
-                                                generate_tool_call_id(fc_name)
-                                                if needs_new_id
-                                                else provided_id
+                                                generate_tool_call_id(fc_name) if needs_new_id else provided_id
                                             )
 
                                             thought_sig = part.get("thoughtSignature")

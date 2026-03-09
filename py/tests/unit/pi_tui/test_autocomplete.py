@@ -12,9 +12,7 @@ import pytest
 from pi_tui.autocomplete import (
     AutocompleteItem,
     CombinedAutocompleteProvider,
-    CompletionResult,
     SlashCommand,
-    SuggestionResult,
     _build_completion_value,
     _expand_home_path,
     _extract_quoted_prefix,
@@ -22,11 +20,9 @@ from pi_tui.autocomplete import (
     _find_unclosed_quote_start,
     _is_token_start,
     _parse_path_prefix,
-    _ParsedPrefix,
     _walk_directory_with_fd,
 )
 from pi_tui.components.select_list import SelectItem
-
 
 # ---------------------------------------------------------------------------
 # AutocompleteItem alias
@@ -345,7 +341,7 @@ class TestCombinedAutocompleteProviderConstruction:
         assert provider.fd_path is None
 
     def test_custom_args(self) -> None:
-        cmds = [SlashCommand(name="test")]
+        cmds: list[SlashCommand | AutocompleteItem] = [SlashCommand(name="test")]
         provider = CombinedAutocompleteProvider(commands=cmds, base_path="/tmp", fd_path="/usr/bin/fd")
         assert provider.commands is cmds
         assert provider.base_path == "/tmp"
@@ -579,8 +575,8 @@ class TestGetSuggestionsFilePath:
         assert result is not None
         labels = [item.label for item in result["items"]]
         # Directory should come first
-        dir_idx = next(i for i, l in enumerate(labels) if l.endswith("/"))
-        file_idx = next(i for i, l in enumerate(labels) if not l.endswith("/"))
+        dir_idx = next(i for i, lbl in enumerate(labels) if lbl.endswith("/"))
+        file_idx = next(i for i, lbl in enumerate(labels) if not lbl.endswith("/"))
         assert dir_idx < file_idx
 
     def test_quoted_path_prefix(self, tmp_path: Path) -> None:

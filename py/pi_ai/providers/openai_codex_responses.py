@@ -306,7 +306,7 @@ async def stream_openai_codex_responses(
                         if output.stop_reason in ("aborted", "error"):
                             raise RuntimeError("An unknown error occurred")
 
-                        yield DoneEvent(reason=output.stop_reason, message=output)  # type: ignore[arg-type]
+                        yield DoneEvent(reason=output.stop_reason, message=output)
                         return
 
                     error_text = await response.aread()

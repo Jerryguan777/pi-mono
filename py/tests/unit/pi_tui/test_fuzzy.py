@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from pi_tui.fuzzy import FuzzyMatch, fuzzy_filter, fuzzy_match
-
+from pi_tui.fuzzy import fuzzy_filter, fuzzy_match
 
 # ---------------------------------------------------------------------------
 # fuzzy_match: empty query
@@ -202,7 +201,7 @@ class TestFuzzyFilterEmptyQuery:
         assert result == items
 
     def test_empty_items_returns_empty(self) -> None:
-        result = fuzzy_filter([], "", lambda x: x)
+        result: list[str] = fuzzy_filter([], "", lambda x: x)
         assert result == []
 
 

@@ -4,15 +4,12 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-import pytest
-
 from pi_tui.keybindings import (
     DEFAULT_EDITOR_KEYBINDINGS,
     EditorKeybindingsManager,
     get_editor_keybindings,
     set_editor_keybindings,
 )
-
 
 # ============================================================================
 # DEFAULT_EDITOR_KEYBINDINGS

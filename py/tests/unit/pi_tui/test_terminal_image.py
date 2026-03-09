@@ -6,8 +6,6 @@ import base64
 import struct
 from unittest.mock import patch
 
-import pytest
-
 from pi_tui.terminal_image import (
     CellDimensions,
     ImageDimensions,
@@ -20,7 +18,6 @@ from pi_tui.terminal_image import (
     get_image_dimensions,
     is_image_line,
 )
-
 
 # ---------------------------------------------------------------------------
 # detect_capabilities
@@ -260,13 +257,13 @@ class TestGetImageDimensionsPng:
 def _make_jpeg(width: int, height: int) -> str:
     """Build a minimal JPEG with SOF0 marker and return base64."""
     # SOI marker
-    data = b"\xFF\xD8"
+    data = b"\xff\xd8"
     # APP0 marker (minimal, to advance past)
     app0_body = b"\x00" * 14
-    data += b"\xFF\xE0" + struct.pack(">H", len(app0_body) + 2) + app0_body
+    data += b"\xff\xe0" + struct.pack(">H", len(app0_body) + 2) + app0_body
     # SOF0 marker: FF C0, length, precision, height, width
     sof_body = struct.pack(">BHH", 8, height, width) + b"\x03" + b"\x00" * 9
-    data += b"\xFF\xC0" + struct.pack(">H", len(sof_body) + 2) + sof_body
+    data += b"\xff\xc0" + struct.pack(">H", len(sof_body) + 2) + sof_body
     return base64.b64encode(data).decode("ascii")
 
 
@@ -285,7 +282,7 @@ class TestGetImageDimensionsJpeg:
         assert dims is None
 
     def test_too_short_jpeg(self) -> None:
-        data = b"\xFF"
+        data = b"\xff"
         b64 = base64.b64encode(data).decode("ascii")
         dims = get_image_dimensions(b64, "image/jpeg")
         assert dims is None

@@ -5,16 +5,12 @@ from __future__ import annotations
 from collections.abc import Callable
 from unittest.mock import MagicMock
 
-from pi_tui.terminal import Terminal
 from pi_tui.tui import (
-    Container,
-    Focusable,
-    OverlayHandle,
-    OverlayOptions,
     TUI,
+    Container,
+    OverlayOptions,
     is_focusable,
 )
-
 
 # ---------------------------------------------------------------------------
 # Mock Terminal
@@ -279,7 +275,9 @@ class TestOverlayOptions:
         assert opts.width == "50%"
 
     def test_visible_callback(self) -> None:
-        visible_fn = lambda cols, rows: cols > 40
+        def visible_fn(cols: int, rows: int) -> bool:
+            return cols > 40
+
         opts = OverlayOptions(visible=visible_fn)
         assert opts.visible is not None
         assert opts.visible(80, 24) is True
@@ -472,7 +470,7 @@ class TestTUIOverlay:
         tui = TUI(term)
         comp = StubComponent(["overlay"])
         opts = OverlayOptions(width=40, anchor="top-left")
-        handle = tui.show_overlay(comp, options=opts)
+        tui.show_overlay(comp, options=opts)
         assert tui.has_overlay() is True
 
     def test_multiple_overlays_stack(self) -> None:

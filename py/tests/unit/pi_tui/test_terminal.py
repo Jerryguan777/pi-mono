@@ -2,17 +2,15 @@
 
 from __future__ import annotations
 
-import asyncio
 import os
 import signal
 import termios
-from typing import Any, runtime_checkable
-from unittest.mock import MagicMock, call, mock_open, patch
+from typing import Any
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from pi_tui.terminal import ProcessTerminal, Terminal, _KITTY_RESPONSE_RE
-
+from pi_tui.terminal import _KITTY_RESPONSE_RE, ProcessTerminal, Terminal
 
 # =============================================================================
 # Terminal Protocol
@@ -473,6 +471,7 @@ class TestSetupStdinBuffer:
         assert term._stdin_buffer is not None
 
         # Simulate kitty protocol response
+        assert term._stdin_buffer.on_data is not None
         term._stdin_buffer.on_data("\x1b[?0u")
 
         assert term._kitty_protocol_active is True
@@ -491,6 +490,7 @@ class TestSetupStdinBuffer:
         term._setup_stdin_buffer()
         assert term._stdin_buffer is not None
 
+        assert term._stdin_buffer.on_data is not None
         term._stdin_buffer.on_data("a")
         handler.assert_called_once_with("a")
 
@@ -505,6 +505,7 @@ class TestSetupStdinBuffer:
         term._setup_stdin_buffer()
         assert term._stdin_buffer is not None
 
+        assert term._stdin_buffer.on_data is not None
         term._stdin_buffer.on_data("\x1b[?0u")
         handler.assert_not_called()
 
@@ -523,6 +524,7 @@ class TestSetupStdinBuffer:
         assert term._stdin_buffer is not None
 
         # When kitty is already active, the response is forwarded as normal input
+        assert term._stdin_buffer.on_data is not None
         term._stdin_buffer.on_data("\x1b[?0u")
         handler.assert_called_once_with("\x1b[?0u")
 
@@ -533,6 +535,7 @@ class TestSetupStdinBuffer:
         term._setup_stdin_buffer()
         assert term._stdin_buffer is not None
 
+        assert term._stdin_buffer.on_paste is not None
         term._stdin_buffer.on_paste("pasted text")
         handler.assert_called_once_with("\x1b[200~pasted text\x1b[201~")
 
@@ -542,7 +545,8 @@ class TestSetupStdinBuffer:
         term._setup_stdin_buffer()
         assert term._stdin_buffer is not None
 
-        # Should not raise
+        # Should not raise — on_paste may be None; call via the process path
+        assert term._stdin_buffer.on_paste is not None
         term._stdin_buffer.on_paste("pasted text")
 
 
@@ -580,9 +584,7 @@ class TestStartReaderThread:
 
         mock_thread_cls.assert_called_once()
         kwargs = mock_thread_cls.call_args
-        assert kwargs.kwargs.get("daemon") is True or (
-            len(kwargs.args) == 0 and kwargs.kwargs.get("daemon") is True
-        )
+        assert kwargs.kwargs.get("daemon") is True or (len(kwargs.args) == 0 and kwargs.kwargs.get("daemon") is True)
         mock_thread.start.assert_called_once()
         assert term._reader_thread is mock_thread
 

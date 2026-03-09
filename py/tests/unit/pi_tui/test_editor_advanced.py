@@ -10,19 +10,13 @@ from __future__ import annotations
 from collections.abc import Callable
 from unittest.mock import MagicMock
 
-import pytest
-
 from pi_tui.components.editor import (
     Editor,
     EditorOptions,
     EditorTheme,
-    TextChunk,
-    word_wrap_line,
 )
 from pi_tui.components.select_list import SelectListTheme
-from pi_tui.keys import Key
 from pi_tui.tui import CURSOR_MARKER
-
 
 # ---------------------------------------------------------------------------
 # Helpers / Fixtures
@@ -307,7 +301,7 @@ class TestPageUpDown:
     def test_page_down_at_bottom_stays(self) -> None:
         editor = _make_editor()
         editor.set_text("short")
-        initial = editor.get_cursor()["col"]
+        editor.get_cursor()["col"]
         editor.handle_input(_KEY["page_down"])
         # Should not crash, cursor stays at or moves to end
         assert editor.get_cursor()["line"] == 0
@@ -335,7 +329,7 @@ class TestScrollBehavior:
         lines = [f"line {i}" for i in range(20)]
         editor.set_text("\n".join(lines))
         # Cursor is at last line (19)
-        result = editor.render(80)
+        editor.render(80)
         # After render, scroll offset should be adjusted so cursor is visible
         assert editor._scroll_offset > 0
 
@@ -351,7 +345,7 @@ class TestScrollBehavior:
         for _ in range(19):
             editor.handle_input(_KEY["up"])
         assert editor.get_cursor()["line"] == 0
-        result = editor.render(80)
+        editor.render(80)
         assert editor._scroll_offset == 0
 
     def test_scroll_indicator_shown_when_scrolled(self) -> None:
@@ -543,7 +537,7 @@ class TestBracketedPaste:
         editor.handle_input(paste_data)
         text = editor.get_text()
         # Should have space before /home
-        assert "file /home/user" == text
+        assert text == "file /home/user"
 
 
 # =========================================================================
@@ -873,7 +867,7 @@ class TestOnChangeCallback:
         changes: list[str] = []
         editor.on_change = lambda t: changes.append(t)
         editor.handle_input(_KEY["shift_enter"])
-        assert "hello\n" == changes[-1]
+        assert changes[-1] == "hello\n"
 
 
 # =========================================================================

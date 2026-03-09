@@ -5,8 +5,6 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import MagicMock
 
-import pytest
-
 from pi_tui.components.settings_list import (
     SettingItem,
     SettingsList,
@@ -608,9 +606,7 @@ class TestSettingsListSubmenu:
             mock.render.return_value = ["sub"]
             return mock
 
-        items = _make_items() + [
-            SettingItem(id="sub", label="Submenu", current_value="val", submenu=submenu_factory)
-        ]
+        items = [*_make_items(), SettingItem(id="sub", label="Submenu", current_value="val", submenu=submenu_factory)]
         sl = _make_settings_list(items=items)
         # Navigate to submenu item (last item)
         for _ in range(len(items) - 1):

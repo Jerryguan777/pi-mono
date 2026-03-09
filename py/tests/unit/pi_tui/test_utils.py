@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from pi_tui.utils import (
     AnsiCode,
     AnsiCodeTracker,
@@ -18,7 +16,6 @@ from pi_tui.utils import (
     visible_width,
     wrap_text_with_ansi,
 )
-
 
 # =========================================================================
 # visible_width
@@ -509,7 +506,7 @@ class TestSliceByColumn:
         s = "a\u4e16b"  # 1 + 2 + 1 = 4 columns
         # Strict slice of cols 0-1: "a" (wide char at col 1-2 extends past)
         result_strict = slice_by_column(s, 0, 2, strict=True)
-        result_non_strict = slice_by_column(s, 0, 2, strict=False)
+        slice_by_column(s, 0, 2, strict=False)
         # In strict mode, the wide char starting at col 1 extends to col 3,
         # which is past length 2, so it should be excluded
         assert visible_width(result_strict) <= 2
@@ -608,7 +605,7 @@ class TestGetSegmenter:
     def test_regional_indicator_flag(self) -> None:
         segmenter = get_segmenter()
         # US flag = regional indicator U + S
-        s = "\U0001F1FA\U0001F1F8"
+        s = "\U0001f1fa\U0001f1f8"
         result = segmenter(s)
         assert len(result) == 1
 

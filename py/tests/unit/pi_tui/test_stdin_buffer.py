@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from pi_tui.stdin_buffer import (
     BRACKETED_PASTE_END,
@@ -19,7 +18,6 @@ from pi_tui.stdin_buffer import (
     _is_complete_osc_sequence,
     _is_complete_sequence,
 )
-
 
 # ---------------------------------------------------------------------------
 # StdinBufferOptions / construction
@@ -223,7 +221,7 @@ class TestExtractCompleteSequences:
 
 
 # ---------------------------------------------------------------------------
-# StdinBuffer.process – simple ASCII
+# StdinBuffer.process - simple ASCII
 # ---------------------------------------------------------------------------
 
 
@@ -261,7 +259,7 @@ class TestStdinBufferProcessAscii:
 
 
 # ---------------------------------------------------------------------------
-# StdinBuffer.process – complete escape sequences
+# StdinBuffer.process - complete escape sequences
 # ---------------------------------------------------------------------------
 
 
@@ -300,7 +298,7 @@ class TestStdinBufferProcessEscapeSequences:
 
 
 # ---------------------------------------------------------------------------
-# StdinBuffer.process – incomplete sequences / multi-write composition
+# StdinBuffer.process - incomplete sequences / multi-write composition
 # ---------------------------------------------------------------------------
 
 
@@ -362,9 +360,9 @@ class TestStdinBufferProcessIncomplete:
         on_data = MagicMock()
         buf.on_data = on_data
 
-        captured_callback = None
+        captured_callback: Callable[[], None] | None = None
 
-        def capture_timer(delay: float, fn: object) -> MagicMock:
+        def capture_timer(delay: float, fn: Callable[[], None]) -> MagicMock:
             nonlocal captured_callback
             captured_callback = fn
             timer = MagicMock()
@@ -376,7 +374,7 @@ class TestStdinBufferProcessIncomplete:
 
         # Simulate the timer firing
         assert captured_callback is not None
-        captured_callback()  # type: ignore[misc]
+        captured_callback()
 
         on_data.assert_called_once_with(ESC)
         assert buf.get_buffer() == ""

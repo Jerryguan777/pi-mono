@@ -162,7 +162,7 @@ async def stream_openai_responses(
         if options and options.signal:
             signal_kwarg["signal"] = options.signal
 
-        openai_stream = await client.responses.create(**params, **signal_kwarg)
+        openai_stream = await client.responses.create(**params, **signal_kwarg)  # type: ignore[call-overload]
 
         yield StartEvent(partial=output)
 
@@ -179,7 +179,7 @@ async def stream_openai_responses(
         if output.stop_reason in ("aborted", "error"):
             raise RuntimeError("An unknown error occurred")
 
-        yield DoneEvent(reason=output.stop_reason, message=output)  # type: ignore[arg-type]
+        yield DoneEvent(reason=output.stop_reason, message=output)
 
     except Exception as exc:
         output.stop_reason = (

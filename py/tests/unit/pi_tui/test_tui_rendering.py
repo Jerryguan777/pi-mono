@@ -12,14 +12,12 @@ from unittest.mock import MagicMock, patch
 
 from pi_tui.tui import (
     CURSOR_MARKER,
-    Container,
+    TUI,
     InputListenerResult,
     OverlayMargin,
     OverlayOptions,
-    TUI,
     _parse_size_value,
 )
-
 
 # ---------------------------------------------------------------------------
 # Mock Terminal
@@ -480,7 +478,7 @@ class TestCellSizeParsing:
         tui = TUI(term)
         tui._cell_size_query_pending = True
         tui._input_buffer = "\x1b[6;18;9t"
-        result = tui._parse_cell_size_response()
+        tui._parse_cell_size_response()
         assert tui._cell_size_query_pending is False
 
     def test_parse_cell_size_response_with_extra_data(self) -> None:
@@ -636,7 +634,6 @@ class TestRenderPipeline:
         comp = StubComponent(["line1", "line2", "line3"])
         tui.add_child(comp)
         _sync_render(tui)
-        count_before = tui.full_redraws
         # Add overlay so clear_on_shrink is skipped
         tui.show_overlay(StubComponent(["overlay"]))
         comp.set_lines(["line1"])
@@ -780,7 +777,7 @@ class TestOverlayLayout:
 
     def test_default_layout_center(self) -> None:
         tui = self._make_tui()
-        width, row, col, max_h = tui._resolve_overlay_layout(None, 5, 80, 24)
+        width, row, col, _max_h = tui._resolve_overlay_layout(None, 5, 80, 24)
         assert width == 80  # min(80, avail_width=80)
         # Centered vertically: (24 - 5) // 2 = 9
         assert row == 9
@@ -790,7 +787,7 @@ class TestOverlayLayout:
     def test_layout_with_explicit_width(self) -> None:
         tui = self._make_tui()
         opts = OverlayOptions(width=40)
-        width, row, col, max_h = tui._resolve_overlay_layout(opts, 5, 80, 24)
+        width, _row, col, _max_h = tui._resolve_overlay_layout(opts, 5, 80, 24)
         assert width == 40
         # col should center: (80 - 40) // 2 = 20
         assert col == 20
@@ -798,7 +795,7 @@ class TestOverlayLayout:
     def test_layout_with_percentage_width(self) -> None:
         tui = self._make_tui()
         opts = OverlayOptions(width="50%")
-        width, row, col, max_h = tui._resolve_overlay_layout(opts, 5, 80, 24)
+        width, _row, _col, _max_h = tui._resolve_overlay_layout(opts, 5, 80, 24)
         assert width == 40  # 50% of 80
 
     def test_layout_with_min_width(self) -> None:
@@ -822,28 +819,28 @@ class TestOverlayLayout:
     def test_layout_top_left_anchor(self) -> None:
         tui = self._make_tui()
         opts = OverlayOptions(width=40, anchor="top-left")
-        width, row, col, _ = tui._resolve_overlay_layout(opts, 5, 80, 24)
+        _width, row, col, _ = tui._resolve_overlay_layout(opts, 5, 80, 24)
         assert row == 0
         assert col == 0
 
     def test_layout_top_right_anchor(self) -> None:
         tui = self._make_tui()
         opts = OverlayOptions(width=40, anchor="top-right")
-        width, row, col, _ = tui._resolve_overlay_layout(opts, 5, 80, 24)
+        _width, row, col, _ = tui._resolve_overlay_layout(opts, 5, 80, 24)
         assert row == 0
         assert col == 40  # 80 - 40
 
     def test_layout_bottom_left_anchor(self) -> None:
         tui = self._make_tui()
         opts = OverlayOptions(width=40, anchor="bottom-left")
-        width, row, col, _ = tui._resolve_overlay_layout(opts, 5, 80, 24)
+        _width, row, col, _ = tui._resolve_overlay_layout(opts, 5, 80, 24)
         assert row == 19  # 24 - 5
         assert col == 0
 
     def test_layout_bottom_right_anchor(self) -> None:
         tui = self._make_tui()
         opts = OverlayOptions(width=40, anchor="bottom-right")
-        width, row, col, _ = tui._resolve_overlay_layout(opts, 5, 80, 24)
+        _width, row, col, _ = tui._resolve_overlay_layout(opts, 5, 80, 24)
         assert row == 19
         assert col == 40
 
@@ -890,7 +887,7 @@ class TestOverlayLayout:
             anchor="top-left",
             margin=OverlayMargin(top=2, right=3, bottom=4, left=5),
         )
-        width, row, col, _ = tui._resolve_overlay_layout(opts, 5, 80, 24)
+        _width, row, col, _ = tui._resolve_overlay_layout(opts, 5, 80, 24)
         assert row == 2
         assert col == 5
 
@@ -989,7 +986,6 @@ class TestOverlayCompositing:
         handle = tui.show_overlay(overlay_comp, OverlayOptions(width=10, anchor="top-left"))
         handle.set_hidden(True)
         _sync_render(tui)
-        output = term.all_output
         # The overlay should not appear since it's hidden
         # (though it depends on compositing; hidden overlay is not visible)
 

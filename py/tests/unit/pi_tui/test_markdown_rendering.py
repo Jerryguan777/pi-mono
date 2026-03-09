@@ -8,9 +8,8 @@ default text styling, image tokens, HTML blocks, and mixed content documents.
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import Any
 from unittest.mock import patch
-
-import pytest
 
 from pi_tui.components.markdown import (
     DefaultTextStyle,
@@ -18,7 +17,6 @@ from pi_tui.components.markdown import (
     MarkdownTheme,
     _InlineStyleContext,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -124,7 +122,7 @@ class TestRenderTokenParagraph:
     def test_paragraph_with_image_token(self) -> None:
         """Test image inline token via direct _render_inline_tokens call."""
         md = _md_instance()
-        tokens = [
+        tokens: list[dict[str, Any]] = [
             {"type": "text", "raw": "Look: "},
             {"type": "image", "attrs": {"alt": "alt text", "url": "https://img.example.com/pic.png"}},
         ]
@@ -296,8 +294,18 @@ class TestRenderTokenList:
             "type": "list",
             "attrs": {"ordered": False},
             "children": [
-                {"type": "list_item", "children": [{"type": "paragraph", "children": [{"type": "text", "raw": "alpha"}]}]},
-                {"type": "list_item", "children": [{"type": "paragraph", "children": [{"type": "text", "raw": "beta"}]}]},
+                {
+                    "type": "list_item",
+                    "children": [
+                        {"type": "paragraph", "children": [{"type": "text", "raw": "alpha"}]},
+                    ],
+                },
+                {
+                    "type": "list_item",
+                    "children": [
+                        {"type": "paragraph", "children": [{"type": "text", "raw": "beta"}]},
+                    ],
+                },
             ],
         }
         result = md._render_token(token, 80, None)
@@ -312,8 +320,18 @@ class TestRenderTokenList:
             "type": "list",
             "attrs": {"ordered": True, "start": 1},
             "children": [
-                {"type": "list_item", "children": [{"type": "paragraph", "children": [{"type": "text", "raw": "first"}]}]},
-                {"type": "list_item", "children": [{"type": "paragraph", "children": [{"type": "text", "raw": "second"}]}]},
+                {
+                    "type": "list_item",
+                    "children": [
+                        {"type": "paragraph", "children": [{"type": "text", "raw": "first"}]},
+                    ],
+                },
+                {
+                    "type": "list_item",
+                    "children": [
+                        {"type": "paragraph", "children": [{"type": "text", "raw": "second"}]},
+                    ],
+                },
             ],
         }
         result = md._render_token(token, 80, None)
@@ -577,7 +595,7 @@ class TestRenderTokenThematicBreak:
 
 
 class TestRenderTokenTable:
-    def _make_table_token(self) -> dict:
+    def _make_table_token(self) -> dict[str, Any]:
         return {
             "type": "table",
             "children": [
@@ -1023,17 +1041,19 @@ class TestImageLineHandling:
         md = _md_instance()
         # Simulate by mocking is_image_line to return True for a marker
         marker = "\x1b_Gtest_image\x1b\\"
-        with patch("pi_tui.components.markdown.is_image_line", side_effect=lambda l: l == marker):
-            with patch("pi_tui.components.markdown.wrap_text_with_ansi", return_value=[marker]):
-                md._text = "dummy"
-                md._cached_lines = None
-                md._cached_text = None
-                md._cached_width = None
-                # Directly test the image-line path in render
-                # We need to make mistune return tokens that produce the marker
-                # Easier: test _render_tokens path directly is tricky,
-                # so let's test the specific branch
-                pass
+        with (
+            patch("pi_tui.components.markdown.is_image_line", side_effect=lambda x: x == marker),
+            patch("pi_tui.components.markdown.wrap_text_with_ansi", return_value=[marker]),
+        ):
+            md._text = "dummy"
+            md._cached_lines = None
+            md._cached_text = None
+            md._cached_width = None
+            # Directly test the image-line path in render
+            # We need to make mistune return tokens that produce the marker
+            # Easier: test _render_tokens path directly is tricky,
+            # so let's test the specific branch
+            pass
 
     def test_render_with_image_line_mock(self) -> None:
         """Full render path where is_image_line returns True for certain lines."""
@@ -1095,7 +1115,7 @@ class TestGetPlainText:
 
     def test_mixed_tokens(self) -> None:
         md = _md_instance()
-        tokens = [
+        tokens: list[dict[str, Any]] = [
             {"type": "text", "raw": "hello "},
             {"type": "strong", "children": [{"type": "text", "raw": "world"}]},
         ]
@@ -1357,17 +1377,19 @@ class TestImageLineRenderPath:
 
         md = _md_instance()
         # We patch _render_token to return an image line, and is_image_line to detect it
-        with patch.object(md, "_render_token", return_value=[image_line]):
-            with patch("pi_tui.components.markdown.is_image_line", side_effect=lambda l: l.startswith(kitty_prefix)):
-                with patch("pi_tui.components.markdown.mistune") as mock_mistune:
-                    mock_mistune.create_markdown.return_value = lambda text: [{"type": "paragraph"}]
-                    md._text = "dummy"
-                    md._cached_lines = None
-                    md._cached_text = None
-                    md._cached_width = None
-                    result = md.render(80)
-                    # The image line should appear in the output unchanged
-                    assert image_line in result
+        with (
+            patch.object(md, "_render_token", return_value=[image_line]),
+            patch("pi_tui.components.markdown.is_image_line", side_effect=lambda x: x.startswith(kitty_prefix)),
+            patch("pi_tui.components.markdown.mistune") as mock_mistune,
+        ):
+            mock_mistune.create_markdown.return_value = lambda text: [{"type": "paragraph"}]
+            md._text = "dummy"
+            md._cached_lines = None
+            md._cached_text = None
+            md._cached_width = None
+            result = md.render(80)
+            # The image line should appear in the output unchanged
+            assert image_line in result
 
 
 # ===================================================================
@@ -1425,7 +1447,7 @@ class TestNestedListAnsi:
         with patch.object(md, "_render_list_item", return_value=[first_line, second_line]):
             result = md._render_list(token, 0)
             # First line gets bullet, second line (nested) appears directly
-            assert any("<bullet>" in l for l in result)
+            assert any("<bullet>" in ln for ln in result)
             assert second_line in result
 
 
@@ -1435,7 +1457,7 @@ class TestNestedListAnsi:
 
 
 class TestTableColumnWidthRedistribution:
-    def _make_wide_table_token(self) -> dict:
+    def _make_wide_table_token(self) -> dict[str, Any]:
         """Create a table with long words that force column width redistribution."""
         return {
             "type": "table",

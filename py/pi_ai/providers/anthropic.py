@@ -712,7 +712,7 @@ async def stream_anthropic(
             raise RuntimeError("An unknown error occurred")
 
         yield DoneEvent(
-            reason=output.stop_reason,  # type: ignore[arg-type]
+            reason=output.stop_reason,
             message=output,
         )
 

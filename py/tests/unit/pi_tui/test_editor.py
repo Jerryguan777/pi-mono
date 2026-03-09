@@ -2,11 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import dataclass
 from unittest.mock import MagicMock
-
-import pytest
 
 from pi_tui.components.editor import (
     Editor,
@@ -16,12 +12,11 @@ from pi_tui.components.editor import (
     word_wrap_line,
 )
 from pi_tui.components.select_list import SelectListTheme
-from pi_tui.keys import Key
-
 
 # ---------------------------------------------------------------------------
 # Helpers / Fixtures
 # ---------------------------------------------------------------------------
+
 
 def _identity(s: str) -> str:
     """Identity styling function (no-op)."""
@@ -74,13 +69,13 @@ _KEY_DATA = {
     "delete": "\x1b[3~",
     "enter": "\r",
     "shift_enter": "\x1b[27;2;13~",  # xterm modifyOtherKeys format
-    "ctrl_u": "\x15",   # ctrl+u
-    "ctrl_k": "\x0b",   # ctrl+k
-    "ctrl_w": "\x17",   # ctrl+w
-    "ctrl_y": "\x19",   # ctrl+y
+    "ctrl_u": "\x15",  # ctrl+u
+    "ctrl_k": "\x0b",  # ctrl+k
+    "ctrl_w": "\x17",  # ctrl+w
+    "ctrl_y": "\x19",  # ctrl+y
     "ctrl_minus": "\x1f",  # ctrl+-  (undo)
-    "ctrl_a": "\x01",   # ctrl+a (home)
-    "ctrl_e": "\x05",   # ctrl+e (end)
+    "ctrl_a": "\x01",  # ctrl+a (home)
+    "ctrl_e": "\x05",  # ctrl+e (end)
 }
 
 
@@ -671,8 +666,8 @@ class TestRender:
         # Should have top border, 2 content lines, bottom border
         assert len(result) >= 4
         content = result[1:-1]
-        assert any("line1" in l for l in content)
-        assert any("line2" in l for l in content)
+        assert any("line1" in line for line in content)
+        assert any("line2" in line for line in content)
 
     def test_render_focused_shows_cursor(self) -> None:
         editor = _make_editor()
@@ -692,6 +687,7 @@ class TestRender:
         content = "".join(result[1:-1])
         # The CURSOR_MARKER should not be present
         from pi_tui.tui import CURSOR_MARKER
+
         assert CURSOR_MARKER not in content
 
     def test_render_with_padding(self) -> None:

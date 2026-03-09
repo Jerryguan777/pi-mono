@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
-
 from pi_tui.components.input import CURSOR_MARKER, Input
-
 
 # =============================================================================
 # Terminal key sequences (legacy mode, non-Kitty)

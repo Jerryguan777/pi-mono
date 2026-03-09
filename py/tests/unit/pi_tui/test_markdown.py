@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import pytest
+from collections.abc import Callable
 
 from pi_tui.components.markdown import DefaultTextStyle, Markdown, MarkdownTheme
-
 
 # ---------------------------------------------------------------------------
 # Test helpers: theme functions that wrap text in identifiable markers
@@ -13,7 +12,7 @@ from pi_tui.components.markdown import DefaultTextStyle, Markdown, MarkdownTheme
 # ---------------------------------------------------------------------------
 
 
-def _tag(name: str) -> callable:
+def _tag(name: str) -> Callable[[str], str]:
     """Return a styling function that wraps text in <name>...</name> markers."""
 
     def _fn(text: str) -> str:
@@ -210,8 +209,8 @@ class TestHeadings:
     def test_heading_adds_blank_line_after(self) -> None:
         lines = _make_md("# Title\n\nParagraph")
         # There should be a blank line (possibly space-padded) between heading and paragraph
-        heading_idx = next(i for i, l in enumerate(lines) if "Title" in l)
-        para_idx = next(i for i, l in enumerate(lines) if "Paragraph" in l)
+        heading_idx = next(i for i, lbl in enumerate(lines) if "Title" in lbl)
+        para_idx = next(i for i, lbl in enumerate(lines) if "Paragraph" in lbl)
         assert para_idx > heading_idx + 1  # at least one line in between
 
 
@@ -328,7 +327,7 @@ class TestCodeBlocks:
             "attrs": {"info": "", "raw": "line1\nline2\n"},
         }
         result = md._render_token(token, 80, None)
-        code_lines = [l for l in result if "<code_block>" in l and "<code_block_border>" not in l]
+        code_lines = [ln for ln in result if "<code_block>" in ln and "<code_block_border>" not in ln]
         for cl in code_lines:
             assert cl.startswith("  ")
 
@@ -363,7 +362,7 @@ class TestBlockquotes:
     def test_blockquote_border_character(self) -> None:
         lines = _make_md("> text")
         # The border should include the box-drawing character
-        border_lines = [l for l in lines if "\u2502" in l]
+        border_lines = [ln for ln in lines if "\u2502" in ln]
         assert len(border_lines) > 0
 
 
@@ -406,7 +405,7 @@ class TestHorizontalRules:
 
     def test_hr_width(self) -> None:
         lines = _make_md("---", width=40)
-        hr_lines = [l for l in lines if "<hr>" in l]
+        hr_lines = [ln for ln in lines if "<hr>" in ln]
         assert len(hr_lines) > 0
         # Should contain up to 40 horizontal line chars
         hr_line = hr_lines[0]
