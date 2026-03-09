@@ -16,6 +16,16 @@ porting additional code or when debugging cross-language issues.
 | `session-manager.ts` | `session_manager.py` |
 | `package-manager.ts` | `package_manager.py` |
 | `agent-session.ts` | `agent_session.py` |
+| `core/tools/truncate.ts` | `core/tools/truncate.py` |
+| `core/tools/path-utils.ts` | `core/tools/path_utils.py` |
+| `core/tools/edit-diff.ts` | `core/tools/edit_diff.py` |
+| `core/tools/bash.ts` | `core/tools/bash.py` |
+| `core/tools/read.ts` | `core/tools/read.py` |
+| `core/tools/edit.ts` | `core/tools/edit.py` |
+| `core/tools/write.ts` | `core/tools/write.py` |
+| `core/tools/grep.ts` | `core/tools/grep.py` |
+| `core/tools/find.ts` | `core/tools/find.py` |
+| `core/tools/ls.ts` | `core/tools/ls.py` |
 
 ---
 
@@ -248,6 +258,33 @@ The following require parallel task 3-3 (compaction module):
 
 - `session.compact()` → raises `NotImplementedError`
 - `session._check_compaction()` → no-op stub
+
+---
+
+## Tools
+
+| TypeScript | Python | Notes |
+|---|---|---|
+| `packages/coding-agent/src/core/tools/truncate.ts` | `core/tools/truncate.py` | |
+| `packages/coding-agent/src/core/tools/path-utils.ts` | `core/tools/path_utils.py` | |
+| `packages/coding-agent/src/core/tools/edit-diff.ts` | `core/tools/edit_diff.py` | |
+| `packages/coding-agent/src/core/tools/bash.ts` | `core/tools/bash.py` | |
+| `packages/coding-agent/src/core/tools/read.ts` | `core/tools/read.py` | |
+| `packages/coding-agent/src/core/tools/edit.ts` | `core/tools/edit.py` | |
+| `packages/coding-agent/src/core/tools/write.ts` | `core/tools/write.py` | |
+| `packages/coding-agent/src/core/tools/grep.ts` | `core/tools/grep.py` | |
+| `packages/coding-agent/src/core/tools/find.ts` | `core/tools/find.py` | |
+| `packages/coding-agent/src/core/tools/ls.ts` | `core/tools/ls.py` | |
+
+### Key Differences
+
+- TypeScript uses TypeBox JSON Schema; Python uses plain `dict[str, Any]` for JSON Schema.
+- TypeScript uses `AbortSignal`; Python uses `asyncio.Event`.
+- TypeScript uses `execa` for subprocess; Python uses `asyncio.create_subprocess_shell`.
+- TypeScript uses `ripgrep` binary via `execa`; Python uses `subprocess.run` with fallback to `re`.
+- TypeScript uses `fd` binary for find; Python uses `subprocess.run` with fallback to `glob.glob`.
+- Image resizing (TypeScript uses `sharp`) is not implemented; images are returned as raw base64.
+- TypeScript `stream.Readable` I/O; Python uses `asyncio.StreamReader`.
 
 ---
 

@@ -77,6 +77,15 @@ from pi_coding_agent.core.system_prompt import (
     Skill,
     build_system_prompt,
 )
+from pi_coding_agent.core.tools import (
+    BashTool,
+    EditTool,
+    FindTool,
+    GrepTool,
+    LsTool,
+    ReadTool,
+    WriteTool,
+)
 
 __all__ = [
     # messages
@@ -99,6 +108,8 @@ __all__ = [
     # bash_executor
     "BashExecutorOptions",
     "BashResult",
+    # tools
+    "BashTool",
     "BranchSummaryEntry",
     "BranchSummaryMessage",
     # system_prompt
@@ -110,13 +121,17 @@ __all__ = [
     "CustomMessageEntry",
     # package_manager
     "DefaultPackageManager",
+    "EditTool",
     # event_bus
     "EventBus",
     # exec
     "ExecOptions",
     "ExecResult",
     "FileEntry",
+    "FindTool",
+    "GrepTool",
     "LabelEntry",
+    "LsTool",
     "MissingSourceAction",
     "ModelChangeEntry",
     "NewSessionOptions",
@@ -125,6 +140,7 @@ __all__ = [
     "ProgressCallback",
     "ProgressEvent",
     "PromptOptions",
+    "ReadTool",
     "ResolvedPaths",
     "ResolvedResource",
     "SessionContext",
@@ -138,6 +154,7 @@ __all__ = [
     "SessionTreeNode",
     "Skill",
     "ThinkingLevelChangeEntry",
+    "WriteTool",
     "bash_execution_to_text",
     "build_session_context",
     "build_system_prompt",
