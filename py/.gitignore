@@ -1,5 +1,6 @@
 __pycache__/
 *.pyc
+*.egg-info/
 .coverage
 .mypy_cache/
 .ruff_cache/
