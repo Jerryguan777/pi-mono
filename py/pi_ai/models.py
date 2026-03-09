@@ -7,6 +7,8 @@ via register_models() or individually.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from pi_ai.types import Model, Usage, UsageCost
 
 # Provider -> (ModelId -> Model)
@@ -15,8 +17,12 @@ from pi_ai.types import Model, Usage, UsageCost
 _model_registry: dict[str, dict[str, Model]] = {}
 
 
-def register_models(provider: str, models: dict[str, Model]) -> None:
-    """Register models for a provider. Used to populate the registry."""
+def register_models(provider: str, models: Mapping[str, Model]) -> None:
+    """Register models for a provider. Used to populate the registry.
+
+    Accepts any Mapping (dict, Mapping view, etc.) and stores an internal copy.
+    Calling this again for the same provider fully replaces its model set.
+    """
     _model_registry[provider] = dict(models)
 
 

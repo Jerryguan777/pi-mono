@@ -117,11 +117,18 @@
 |-------------------|-------------------|--------|-------|
 | (proxy setup) | No-op module | Done | httpx reads proxy env vars natively |
 
+## models.generated.ts -> models_generated.py
+
+| TS Function/Class | Python Equivalent | Status | Notes |
+|-------------------|-------------------|--------|-------|
+| `MODELS` (const) | `MODELS` (dict) | Done | Generated from TS source |
+| (auto-load) | `load_models()` | Done | Called on import to populate model registry |
+
 ## providers/register-builtins.ts → providers/register_builtins.py
 
 | TS Function/Class | Python Equivalent | Status | Notes |
 |-------------------|-------------------|--------|-------|
-| `registerBuiltInApiProviders()` | `register_built_in_api_providers()` | Done | Placeholder — providers not yet ported |
+| `registerBuiltInApiProviders()` | `register_built_in_api_providers()` | Done | All 9 providers registered |
 | `resetApiProviders()` | `reset_api_providers()` | Done | |
 | `BUILT_IN_APIS` | `BUILT_IN_APIS` | Done | New — list of API names for reference |
 
