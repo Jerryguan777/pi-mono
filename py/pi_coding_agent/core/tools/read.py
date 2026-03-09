@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import base64
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -11,7 +13,49 @@ from pi_agent.types import AgentTool, AgentToolResult, AgentToolUpdateCallback
 from pi_ai.types import ImageContent, TextContent
 
 from .path_utils import resolve_read_path
-from .truncate import DEFAULT_MAX_BYTES, format_size, truncate_head
+from .truncate import DEFAULT_MAX_BYTES, TruncationResult, format_size, truncate_head
+
+
+@dataclass
+class ReadToolInput:
+    """Input parameters for the read tool."""
+
+    path: str
+    offset: int | None = None
+    limit: int | None = None
+
+
+@dataclass
+class ReadToolDetails:
+    """Details returned by the read tool."""
+
+    truncation: TruncationResult | None = None
+
+
+@dataclass
+class ReadOperations:
+    """Pluggable operations for the read tool.
+
+    Override to delegate file reading to remote systems (e.g., SSH).
+    """
+
+    read_file: Callable[[str], Awaitable[bytes]]
+    """Read file contents as bytes."""
+    access: Callable[[str], Awaitable[None]]
+    """Check if file is readable (raise if not)."""
+    detect_image_mime_type: Callable[[str], Awaitable[str | None]] | None = None
+    """Detect image MIME type, return None for non-images."""
+
+
+@dataclass
+class ReadToolOptions:
+    """Options for the read tool."""
+
+    auto_resize_images: bool = True
+    """Whether to auto-resize images to 2000x2000 max."""
+    operations: ReadOperations | None = None
+    """Custom operations for file reading. Default: local filesystem."""
+
 
 # Supported image extensions and their MIME types
 SUPPORTED_IMAGE_EXTENSIONS: dict[str, str] = {

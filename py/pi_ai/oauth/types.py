@@ -37,6 +37,9 @@ class OAuthCredentials:
 
 OAuthProviderId = str
 
+# Deprecated: Use OAuthProviderId instead
+OAuthProvider = OAuthProviderId
+
 
 @dataclass
 class OAuthPrompt:

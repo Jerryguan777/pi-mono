@@ -92,8 +92,56 @@ AgentSessionEvent = (
 
 AgentSessionEventListener = Callable[[AgentSessionEvent], None]
 
+
+# ---------------------------------------------------------------------------
+# Skill Block Parsing
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ParsedSkillBlock:
+    """Parsed skill block from a user message."""
+
+    name: str
+    location: str
+    content: str
+    user_message: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# Model Cycle Result
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ModelCycleResult:
+    """Result from cycleModel()."""
+
+    model: Model
+    thinking_level: ThinkingLevel
+    is_scoped: bool = False
+
+
+# ---------------------------------------------------------------------------
+# Extension Bindings
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ExtensionBindings:
+    """Bindings for connecting extensions to the agent session."""
+
+    ui_context: Any = None  # ExtensionUIContext
+    command_context_actions: Any = None  # ExtensionCommandContextActions
+    shutdown_handler: Callable[[], None] | None = None
+    on_error: Callable[[Any], None] | None = None  # ExtensionErrorListener
+
+
 # Default thinking level
 DEFAULT_THINKING_LEVEL: ThinkingLevel = "off"
+
+# snake_case alias for parity with TS camelCase export
+default_thinking_level = DEFAULT_THINKING_LEVEL
 
 # Thinking levels available for all reasoning models
 THINKING_LEVELS: list[ThinkingLevel] = ["off", "minimal", "low", "medium", "high"]

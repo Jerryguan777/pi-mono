@@ -22,6 +22,10 @@ class EventBus(Protocol):
         """Subscribe a handler to a channel. Returns an unsubscribe function."""
         ...
 
+
+class EventBusController(EventBus, Protocol):
+    """Extended event bus with clear() for lifecycle management."""
+
     def clear(self) -> None:
         """Remove all handlers from all channels."""
         ...

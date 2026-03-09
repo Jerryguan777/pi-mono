@@ -24,6 +24,14 @@ class TruncationResult:
     first_line_exceeds_limit: bool
 
 
+@dataclass
+class TruncationOptions:
+    """Options for truncation limits."""
+
+    max_lines: int = DEFAULT_MAX_LINES
+    max_bytes: int = DEFAULT_MAX_BYTES
+
+
 def format_size(num_bytes: int) -> str:
     """Format a byte count as a human-readable size string."""
     if num_bytes < 1024:

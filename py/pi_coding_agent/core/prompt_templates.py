@@ -29,6 +29,16 @@ class PromptTemplate:
     file_path: str  # Absolute path to the template file
 
 
+@dataclass
+class LoadPromptTemplatesOptions:
+    """Options for loading prompt templates."""
+
+    cwd: str | None = None  # Default: cwd
+    agent_dir: str | None = None  # Default: from get_prompts_dir()
+    prompt_paths: list[str] | None = None  # Explicit prompt paths
+    include_defaults: bool = True
+
+
 # ============================================================================
 # Argument parsing and substitution
 # ============================================================================

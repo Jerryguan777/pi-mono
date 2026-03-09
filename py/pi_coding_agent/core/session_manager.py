@@ -12,10 +12,11 @@ import json
 import logging
 import os
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 
 from pi_ai.types import (
     ImageContent,
@@ -173,6 +174,8 @@ SessionEntry = (
 )
 
 FileEntry = SessionHeader | SessionEntry
+
+SessionListProgress = Callable[[int, int], None]
 
 
 @dataclass
@@ -1625,3 +1628,30 @@ async def _list_sessions_from_dir(
             sessions.append(info)
 
     return sessions
+
+
+# ---------------------------------------------------------------------------
+# ReadonlySessionManager Protocol
+# ---------------------------------------------------------------------------
+
+
+class ReadonlySessionManager(Protocol):
+    """Read-only view of a SessionManager.
+
+    Port of ReadonlySessionManager from packages/coding-agent/src/core/session-manager.ts.
+    Provides only the getter methods needed for consumers that do not modify sessions.
+    """
+
+    def get_cwd(self) -> str: ...
+    def get_session_dir(self) -> str: ...
+    def get_session_id(self) -> str: ...
+    def get_session_file(self) -> str | None: ...
+    def get_leaf_id(self) -> str | None: ...
+    def get_leaf_entry(self) -> SessionEntry | None: ...
+    def get_entry(self, entry_id: str) -> SessionEntry | None: ...
+    def get_label(self, entry_id: str) -> str | None: ...
+    def get_branch(self, from_id: str | None = None) -> list[SessionEntry]: ...
+    def get_header(self) -> SessionHeader | None: ...
+    def get_entries(self) -> list[SessionEntry]: ...
+    def get_tree(self) -> list[SessionTreeNode]: ...
+    def get_session_name(self) -> str | None: ...

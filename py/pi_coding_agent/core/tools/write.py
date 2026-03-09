@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +12,35 @@ from pi_agent.types import AgentTool, AgentToolResult, AgentToolUpdateCallback
 from pi_ai.types import TextContent
 
 from .path_utils import resolve_to_cwd
+
+
+@dataclass
+class WriteToolInput:
+    """Input parameters for the write tool."""
+
+    path: str
+    content: str
+
+
+@dataclass
+class WriteOperations:
+    """Pluggable operations for the write tool.
+
+    Override to delegate file writing to remote systems (e.g., SSH).
+    """
+
+    write_file: Callable[[str, str], Awaitable[None]]
+    """Write content to a file."""
+    mkdir: Callable[[str], Awaitable[None]]
+    """Create directory (recursively)."""
+
+
+@dataclass
+class WriteToolOptions:
+    """Options for the write tool."""
+
+    operations: WriteOperations | None = None
+    """Custom operations for file writing. Default: local filesystem."""
 
 
 class WriteTool(AgentTool):

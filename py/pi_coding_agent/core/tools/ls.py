@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +12,47 @@ from pi_agent.types import AgentTool, AgentToolResult, AgentToolUpdateCallback
 from pi_ai.types import TextContent
 
 from .path_utils import resolve_to_cwd
+from .truncate import TruncationResult
+
+
+@dataclass
+class LsToolInput:
+    """Input parameters for the ls tool."""
+
+    path: str | None = None
+    limit: int | None = None
+
+
+@dataclass
+class LsToolDetails:
+    """Details returned by the ls tool."""
+
+    truncation: TruncationResult | None = None
+    entry_limit_reached: int | None = None
+
+
+@dataclass
+class LsOperations:
+    """Pluggable operations for the ls tool.
+
+    Override to delegate directory listing to remote systems (e.g., SSH).
+    """
+
+    exists: Callable[[str], Awaitable[bool] | bool]
+    """Check if path exists."""
+    stat: Callable[[str], Awaitable[Any] | Any]
+    """Get file/directory stats. Raises if not found."""
+    readdir: Callable[[str], Awaitable[list[str]] | list[str]]
+    """Read directory entries."""
+
+
+@dataclass
+class LsToolOptions:
+    """Options for the ls tool."""
+
+    operations: LsOperations | None = None
+    """Custom operations for directory listing. Default: local filesystem."""
+
 
 DEFAULT_LIMIT = 500
 

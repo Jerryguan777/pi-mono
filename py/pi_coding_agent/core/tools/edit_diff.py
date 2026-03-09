@@ -5,6 +5,7 @@ from __future__ import annotations
 import difflib
 import re
 from dataclasses import dataclass
+from pathlib import Path
 
 
 def detect_line_ending(content: str) -> str:
@@ -291,3 +292,90 @@ def generate_diff_string(
         diff="\n".join(output_parts),
         first_changed_line=first_changed_line,
     )
+
+
+@dataclass
+class EditDiffResult:
+    """Result of computing an edit diff (preview without applying)."""
+
+    diff: str
+    first_changed_line: int | None = None
+
+
+@dataclass
+class EditDiffError:
+    """Error from computing an edit diff."""
+
+    error: str
+
+
+def compute_edit_diff(
+    path: str,
+    old_text: str,
+    new_text: str,
+    cwd: str,
+) -> EditDiffResult | EditDiffError:
+    """Compute the diff for an edit operation without applying it.
+
+    Used for preview rendering in the TUI before the tool executes.
+    """
+    from .path_utils import resolve_to_cwd
+
+    absolute_path = resolve_to_cwd(path, cwd)
+
+    try:
+        file_path = Path(absolute_path)
+        if not file_path.is_file():
+            return EditDiffError(error=f"File not found: {path}")
+
+        raw_content = file_path.read_text(encoding="utf-8", errors="replace")
+
+        # Strip BOM before matching
+        _, content = strip_bom(raw_content)
+
+        normalized_content = normalize_to_lf(content)
+        normalized_old_text = normalize_to_lf(old_text)
+        normalized_new_text = normalize_to_lf(new_text)
+
+        # Find the old text using fuzzy matching
+        match_result = fuzzy_find_text(normalized_content, normalized_old_text)
+
+        if not match_result.found:
+            return EditDiffError(
+                error=f"Could not find the exact text in {path}. "
+                "The old text must match exactly including all whitespace and newlines.",
+            )
+
+        # Count occurrences using fuzzy-normalized content
+        fuzzy_content = normalize_for_fuzzy_match(normalized_content)
+        fuzzy_old_text = normalize_for_fuzzy_match(normalized_old_text)
+        occurrences = fuzzy_content.count(fuzzy_old_text)
+
+        if occurrences > 1:
+            return EditDiffError(
+                error=f"Found {occurrences} occurrences of the text in {path}. "
+                "The text must be unique. Please provide more context to make it unique.",
+            )
+
+        # Compute the new content
+        base_content = match_result.content_for_replacement
+        new_content = (
+            base_content[: match_result.index]
+            + normalized_new_text
+            + base_content[match_result.index + match_result.match_length :]
+        )
+
+        # Check if it would actually change anything
+        if base_content == new_content:
+            return EditDiffError(
+                error=f"No changes would be made to {path}. The replacement produces identical content.",
+            )
+
+        # Generate the diff
+        diff_result = generate_diff_string(base_content, new_content)
+        return EditDiffResult(
+            diff=diff_result.diff,
+            first_changed_line=diff_result.first_changed_line,
+        )
+    except Exception as e:
+        return EditDiffError(error=str(e))

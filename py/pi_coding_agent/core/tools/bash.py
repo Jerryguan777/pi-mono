@@ -6,12 +6,54 @@ import asyncio
 import contextlib
 import os
 import tempfile
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from typing import Any
 
 from pi_agent.types import AgentTool, AgentToolResult, AgentToolUpdateCallback
 from pi_ai.types import TextContent
 
-from .truncate import DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, format_size, truncate_tail
+from .truncate import DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, TruncationResult, format_size, truncate_tail
+
+
+@dataclass
+class BashToolInput:
+    """Input parameters for the bash tool."""
+
+    command: str
+    timeout: float | None = None
+
+
+@dataclass
+class BashToolDetails:
+    """Details returned by the bash tool."""
+
+    truncation: TruncationResult | None = None
+    full_output_path: str | None = None
+
+
+@dataclass
+class BashSpawnContext:
+    """Context for bash command execution."""
+
+    command: str
+    cwd: str
+    env: dict[str, str] = field(default_factory=dict)
+
+
+BashSpawnHook = Callable[[BashSpawnContext], BashSpawnContext]
+"""Hook to adjust command, cwd, or env before execution."""
+
+
+@dataclass
+class BashToolOptions:
+    """Options for the bash tool."""
+
+    command_prefix: str | None = None
+    """Command prefix prepended to every command."""
+    spawn_hook: BashSpawnHook | None = None
+    """Hook to adjust command, cwd, or env before execution."""
+
 
 # Rolling buffer window: keep at most 2x DEFAULT_MAX_BYTES of recent chunks in memory
 MAX_CHUNKS_BYTES = DEFAULT_MAX_BYTES * 2

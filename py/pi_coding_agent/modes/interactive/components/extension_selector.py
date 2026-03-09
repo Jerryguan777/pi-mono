@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from pi_coding_agent.modes.interactive.components._theme import theme
@@ -16,6 +17,18 @@ from pi_tui.tui import Container
 
 if TYPE_CHECKING:
     from pi_tui.tui import TUI
+
+
+@dataclass
+class ExtensionSelectorOptions:
+    """Options for creating an ExtensionSelectorComponent.
+
+    Port of ExtensionSelectorOptions from
+    packages/coding-agent/src/modes/interactive/components/extension-selector.ts.
+    """
+
+    tui: TUI | None = None
+    timeout: int | None = None
 
 
 class ExtensionSelectorComponent(Container):

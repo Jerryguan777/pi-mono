@@ -37,6 +37,8 @@ from pi_ai.oauth.types import (
     OAuthCredentials,
     OAuthLoginCallbacks,
     OAuthPrompt,
+    OAuthProvider,
+    OAuthProviderId,
     OAuthProviderInfo,
     OAuthProviderInterface,
 )
@@ -46,6 +48,8 @@ __all__ = [
     "OAuthCredentials",
     "OAuthLoginCallbacks",
     "OAuthPrompt",
+    "OAuthProvider",
+    "OAuthProviderId",
     "OAuthProviderInfo",
     "OAuthProviderInterface",
     "anthropic_oauth_provider",

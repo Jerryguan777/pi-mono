@@ -32,17 +32,41 @@ _extract_mod = _load_extract_module()
 _extract_exports_fn: Callable[[str], list[tuple[str, str]]] = _extract_mod.extract_exports
 
 
+# Map compound acronyms to single capitalized words before camelCase splitting
+_ACRONYM_NORMALIZE: list[tuple[str, str]] = [
+    ("OAuth", "Oauth"),
+    ("GitHub", "Github"),
+    ("OpenAI", "Openai"),
+    ("iTerm", "Iterm"),
+    ("ITerm", "Iterm"),
+]
+
+
 def _camel_to_snake(name: str) -> str:
-    """Convert camelCase to snake_case."""
+    """Convert camelCase to snake_case, handling known acronyms."""
+    for acronym, normalized in _ACRONYM_NORMALIZE:
+        name = name.replace(acronym, normalized)
     s1 = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", name)
     return re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
 
 
-def _expected_python_name(name: str, kind: str) -> str:
-    """Get the expected Python name for a TS export."""
+def _expected_python_names(name: str, kind: str) -> list[str]:
+    """Get possible Python names for a TS export.
+
+    Returns a list of candidate names. For consts, includes both
+    snake_case and UPPER_SNAKE_CASE variants.
+    """
     if kind in ("class", "interface", "type", "enum"):
-        return name  # PascalCase stays
-    return _camel_to_snake(name)
+        return [name]
+    snake = _camel_to_snake(name)
+    if kind == "const":
+        upper = snake.upper()
+        # Also try keeping original if already UPPER_CASE
+        candidates = [snake, upper]
+        if name != snake and name != upper:
+            candidates.append(name)
+        return list(dict.fromkeys(candidates))  # dedupe preserving order
+    return [snake]
 
 
 # Default package pairs: (ts_src_path_relative_to_repo_root, python_package_name)
@@ -56,12 +80,12 @@ _DEFAULT_PAIRS: list[tuple[str, str]] = [
 ]
 
 
-def get_ts_exports(ts_path: Path) -> list[tuple[str, str, str]]:
+def get_ts_exports(ts_path: Path) -> list[tuple[str, str, list[str]]]:
     """Get all TS exports from a path.
 
-    Returns list of (name, kind, expected_python_name) tuples.
+    Returns list of (name, kind, expected_python_names) tuples.
     """
-    results: list[tuple[str, str, str]] = []
+    results: list[tuple[str, str, list[str]]] = []
     if not ts_path.exists():
         return results
 
@@ -71,8 +95,8 @@ def get_ts_exports(ts_path: Path) -> list[tuple[str, str, str]]:
     for ts_file in files:
         source = ts_file.read_text(encoding="utf-8")
         for name, kind in _extract_exports_fn(source):
-            py_name = _expected_python_name(name, kind)
-            results.append((name, kind, py_name))
+            py_names = _expected_python_names(name, kind)
+            results.append((name, kind, py_names))
 
     return results
 
@@ -99,11 +123,25 @@ def check_parity(ts_path: Path, python_package: str) -> dict[str, list[str]]:
     ts_exports = get_ts_exports(ts_path)
     py_api = get_python_public_api(python_package)
 
-    expected_py_names = {py_name for _, _, py_name in ts_exports}
+    matched_ts: set[str] = set()  # TS names that matched
+    matched_py: set[str] = set()  # Python names that matched
+    missing_names: list[str] = []
 
-    missing = sorted(expected_py_names - py_api)
-    extra = sorted(py_api - expected_py_names)
-    matched = sorted(expected_py_names & py_api)
+    for ts_name, _kind, py_candidates in ts_exports:
+        found = False
+        for candidate in py_candidates:
+            if candidate in py_api:
+                matched_ts.add(ts_name)
+                matched_py.add(candidate)
+                found = True
+                break
+        if not found:
+            # Report the first (preferred) candidate name as missing
+            missing_names.append(py_candidates[0])
+
+    extra = sorted(py_api - matched_py)
+    matched = sorted(matched_py)
+    missing = sorted(set(missing_names))
 
     return {"missing": missing, "extra": extra, "matched": matched}
 
@@ -155,10 +193,16 @@ def main() -> None:
         print(f"Usage: {sys.argv[0]} [<ts_package_path> <python_package_name>]", file=sys.stderr)
         sys.exit(1)
 
+    has_gaps = False
     for ts_path_str, py_pkg in pairs:
         ts_path = Path(ts_path_str)
         result = check_parity(ts_path, py_pkg)
         print(format_report(ts_path_str, py_pkg, result))
+        if result["missing"]:
+            has_gaps = True
+
+    if has_gaps:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

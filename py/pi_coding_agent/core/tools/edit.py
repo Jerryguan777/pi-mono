@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +21,48 @@ from .edit_diff import (
     strip_bom,
 )
 from .path_utils import resolve_to_cwd
+
+
+@dataclass
+class EditToolInput:
+    """Input parameters for the edit tool."""
+
+    path: str
+    old_text: str
+    new_text: str
+
+
+@dataclass
+class EditToolDetails:
+    """Details returned by the edit tool."""
+
+    diff: str
+    """Unified diff of the changes made."""
+    first_changed_line: int | None = None
+    """Line number of the first change in the new file."""
+
+
+@dataclass
+class EditOperations:
+    """Pluggable operations for the edit tool.
+
+    Override to delegate file editing to remote systems (e.g., SSH).
+    """
+
+    read_file: Callable[[str], Awaitable[bytes]]
+    """Read file contents as bytes."""
+    write_file: Callable[[str, str], Awaitable[None]]
+    """Write content to a file."""
+    access: Callable[[str], Awaitable[None]]
+    """Check if file is readable and writable (raise if not)."""
+
+
+@dataclass
+class EditToolOptions:
+    """Options for the edit tool."""
+
+    operations: EditOperations | None = None
+    """Custom operations for file editing. Default: local filesystem."""
 
 
 class EditTool(AgentTool):

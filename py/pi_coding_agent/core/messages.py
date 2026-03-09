@@ -30,6 +30,12 @@ COMPACTION_SUMMARY_SUFFIX = "\n</summary>"
 BRANCH_SUMMARY_PREFIX = "The following is a summary of a branch that this conversation came back from:\n\n<summary>\n"
 BRANCH_SUMMARY_SUFFIX = "</summary>"
 
+# snake_case aliases for parity with TS camelCase exports
+branch_summary_prefix = BRANCH_SUMMARY_PREFIX
+branch_summary_suffix = BRANCH_SUMMARY_SUFFIX
+compaction_summary_prefix = COMPACTION_SUMMARY_PREFIX
+compaction_summary_suffix = COMPACTION_SUMMARY_SUFFIX
+
 
 # ---------------------------------------------------------------------------
 # Custom message dataclasses

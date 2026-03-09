@@ -14,37 +14,30 @@ from pi_coding_agent.core.settings_manager import (
 )
 
 
+def _capture(target: list[str | None], value: str | None) -> None:
+    """Append *value* to *target* and return None (avoids using append's return)."""
+    target.append(value)
+
+
 class TestInMemorySettingsStorage:
     def test_initial_state_is_none(self) -> None:
         storage = InMemorySettingsStorage()
         received: list[str | None] = []
-
-        def _capture(c: str | None) -> None:
-            received.append(c)
-
-        storage.with_lock("global", _capture)
+        storage.with_lock("global", lambda c: _capture(received, c))
         assert received == [None]
 
     def test_write_and_read_global(self) -> None:
         storage = InMemorySettingsStorage()
         storage.with_lock("global", lambda _: '{"defaultModel": "claude"}')
         received: list[str | None] = []
-
-        def _capture(c: str | None) -> None:
-            received.append(c)
-
-        storage.with_lock("global", _capture)
+        storage.with_lock("global", lambda c: _capture(received, c))
         assert received[0] == '{"defaultModel": "claude"}'
 
     def test_write_and_read_project(self) -> None:
         storage = InMemorySettingsStorage()
         storage.with_lock("project", lambda _: '{"theme": "dark"}')
         received: list[str | None] = []
-
-        def _capture(c: str | None) -> None:
-            received.append(c)
-
-        storage.with_lock("project", _capture)
+        storage.with_lock("project", lambda c: _capture(received, c))
         assert received[0] == '{"theme": "dark"}'
 
     def test_global_and_project_are_independent(self) -> None:
@@ -54,15 +47,8 @@ class TestInMemorySettingsStorage:
 
         global_received: list[str | None] = []
         project_received: list[str | None] = []
-
-        def _capture_global(c: str | None) -> None:
-            global_received.append(c)
-
-        def _capture_project(c: str | None) -> None:
-            project_received.append(c)
-
-        storage.with_lock("global", _capture_global)
-        storage.with_lock("project", _capture_project)
+        storage.with_lock("global", lambda c: _capture(global_received, c))
+        storage.with_lock("project", lambda c: _capture(project_received, c))
 
         assert global_received[0] == '{"defaultModel": "claude"}'
         assert project_received[0] == '{"theme": "dark"}'

@@ -136,6 +136,9 @@ class Settings:
 
 SettingsScope = Literal["global", "project"]
 
+# Transport setting type alias (mirrors TS: type TransportSetting = Transport)
+TransportSetting = str
+
 
 @dataclass
 class SettingsError:

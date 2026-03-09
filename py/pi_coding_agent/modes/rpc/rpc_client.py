@@ -11,6 +11,7 @@ import json
 import logging
 import uuid
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 
 from pi_agent.types import ThinkingLevel
@@ -25,8 +26,31 @@ logger = logging.getLogger(__name__)
 
 # Type for event listener callbacks; receives raw event dict
 EventListener = Callable[[dict[str, Any]], None]
+RpcEventListener = EventListener
 # Unsubscribe function returned by on_event()
 Unsubscribe = Callable[[], None]
+
+
+@dataclass
+class RpcClientOptions:
+    """Options for creating an RPC client."""
+
+    cli_path: str | None = None
+    cwd: str | None = None
+    env: dict[str, str] | None = None
+    provider: str | None = None
+    model: str | None = None
+    args: list[str] | None = None
+
+
+@dataclass
+class ModelInfo:
+    """Model information returned by RPC."""
+
+    provider: str = ""
+    id: str = ""
+    context_window: int = 0
+    reasoning: bool = False
 
 
 def _encode_image(img: ImageContent) -> dict[str, Any]:

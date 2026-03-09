@@ -17,6 +17,14 @@ import pi_mom.log as log
 
 
 @dataclass
+class ChannelStoreConfig:
+    """Configuration for creating a ChannelStore."""
+
+    working_dir: str
+    bot_token: str  # needed for authenticated file downloads
+
+
+@dataclass
 class Attachment:
     """A file attached to a Slack message."""
 
