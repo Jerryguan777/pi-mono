@@ -21,6 +21,11 @@ from pi_ai.models import (
     register_models,
     supports_xhigh,
 )
+from pi_ai.providers.amazon_bedrock import (
+    BedrockOptions,
+    stream_bedrock,
+    stream_simple_bedrock,
+)
 from pi_ai.providers.anthropic import (
     AnthropicEffort,
     AnthropicOptions,
@@ -36,6 +41,37 @@ from pi_ai.providers.github_copilot_headers import (
     build_copilot_dynamic_headers,
     has_copilot_vision_input,
     infer_copilot_initiator,
+)
+from pi_ai.providers.google import (
+    GoogleOptions,
+    GoogleThinkingLevel,
+    stream_google,
+    stream_simple_google,
+)
+from pi_ai.providers.google_gemini_cli import (
+    GoogleGeminiCliOptions,
+    build_request,
+    extract_retry_delay,
+    stream_google_gemini_cli,
+    stream_simple_google_gemini_cli,
+)
+from pi_ai.providers.google_shared import (
+    convert_tools as convert_google_tools,
+)
+from pi_ai.providers.google_shared import (
+    is_thinking_part,
+    map_stop_reason_string,
+    map_tool_choice,
+    requires_tool_call_id,
+    retain_thought_signature,
+)
+from pi_ai.providers.google_shared import (
+    map_stop_reason as map_google_stop_reason,
+)
+from pi_ai.providers.google_vertex import (
+    GoogleVertexOptions,
+    stream_google_vertex,
+    stream_simple_google_vertex,
 )
 from pi_ai.providers.openai_codex_responses import (
     OpenAICodexResponsesOptions,
@@ -148,6 +184,7 @@ __all__ = [
     "AssistantMessageEvent",
     "AssistantMessageEventStream",
     "AzureOpenAIResponsesOptions",
+    "BedrockOptions",
     "CacheRetention",
     "CompatType",
     "ContentBlock",
@@ -156,6 +193,10 @@ __all__ = [
     "ConvertResponsesToolsOptions",
     "DoneEvent",
     "ErrorEvent",
+    "GoogleGeminiCliOptions",
+    "GoogleOptions",
+    "GoogleThinkingLevel",
+    "GoogleVertexOptions",
     "ImageContent",
     "KnownApi",
     "KnownProvider",
@@ -201,12 +242,14 @@ __all__ = [
     "adjust_max_tokens_for_thinking",
     "build_base_options",
     "build_copilot_dynamic_headers",
+    "build_request",
     "calculate_cost",
     "clamp_reasoning",
     "clear_api_providers",
     "clear_model_registry",
     "complete",
     "complete_simple",
+    "convert_google_tools",
     "convert_messages",
     "convert_responses_messages",
     "convert_responses_tools",
@@ -215,6 +258,7 @@ __all__ = [
     "deserialize_model",
     "deserialize_usage",
     "deserialize_usage_cost",
+    "extract_retry_delay",
     "get_api_provider",
     "get_api_providers",
     "get_env_api_key",
@@ -225,13 +269,19 @@ __all__ = [
     "has_copilot_vision_input",
     "infer_copilot_initiator",
     "is_context_overflow",
+    "is_thinking_part",
+    "map_google_stop_reason",
+    "map_stop_reason_string",
+    "map_tool_choice",
     "models_are_equal",
     "parse_streaming_json",
     "process_responses_stream",
     "register_api_provider",
     "register_built_in_api_providers",
     "register_models",
+    "requires_tool_call_id",
     "reset_api_providers",
+    "retain_thought_signature",
     "sanitize_surrogates",
     "serialize_content_block",
     "serialize_message",
@@ -241,12 +291,20 @@ __all__ = [
     "stream",
     "stream_anthropic",
     "stream_azure_openai_responses",
+    "stream_bedrock",
+    "stream_google",
+    "stream_google_gemini_cli",
+    "stream_google_vertex",
     "stream_openai_codex_responses",
     "stream_openai_completions",
     "stream_openai_responses",
     "stream_simple",
     "stream_simple_anthropic",
     "stream_simple_azure_openai_responses",
+    "stream_simple_bedrock",
+    "stream_simple_google",
+    "stream_simple_google_gemini_cli",
+    "stream_simple_google_vertex",
     "stream_simple_openai_codex_responses",
     "stream_simple_openai_completions",
     "stream_simple_openai_responses",

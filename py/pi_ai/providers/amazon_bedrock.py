@@ -472,9 +472,7 @@ def _convert_messages(
 ) -> list[dict[str, Any]]:
     """Convert context messages to Bedrock Converse message format."""
     result: list[dict[str, Any]] = []
-    transformed = transform_messages(
-        context.messages, model, lambda tc_id, _m, _a: _normalize_tool_call_id(tc_id)
-    )
+    transformed = transform_messages(context.messages, model, lambda tc_id, _m, _a: _normalize_tool_call_id(tc_id))
 
     i = 0
     while i < len(transformed):
