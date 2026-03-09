@@ -701,7 +701,7 @@ wheels = [
 [[package]]
 name = "pi-agent"
 version = "0.1.0"
-source = { virtual = "pi_agent" }
+source = { editable = "pi_agent" }
 dependencies = [
     { name = "httpx" },
     { name = "pi-ai" },
@@ -742,6 +742,16 @@ requires-dist = [
 name = "pi-coding-agent"
 version = "0.1.0"
 source = { virtual = "pi_coding_agent" }
+dependencies = [
+    { name = "pi-agent" },
+    { name = "pi-ai" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pi-agent", editable = "pi_agent" },
+    { name = "pi-ai", editable = "pi_ai" },
+]
 
 [[package]]
 name = "pi-mom"

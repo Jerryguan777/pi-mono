@@ -4,4 +4,11 @@ version = "0.1.0"
 description = "Interactive coding agent CLI"
 requires-python = ">=3.12"
 license = "MIT"
-dependencies = []
+dependencies = [
+    "pi-agent",
+    "pi-ai",
+]
+
+[tool.uv.sources]
+pi-agent = { workspace = true }
+pi-ai = { workspace = true }
