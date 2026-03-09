@@ -10,6 +10,8 @@ dependencies = [
     "pi-tui",
     "filelock>=3.0",
     "pyyaml>=6.0",
+    "Pillow",
+    "httpx",
     "watchdog>=3.0; extra == 'watcher'",
 ]
 
