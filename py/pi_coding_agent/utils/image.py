@@ -104,7 +104,7 @@ def resize_image(img: ImageContent, options: ImageResizeOptions | None = None) -
         raise RuntimeError("Pillow is required for image resizing. Install it with: pip install Pillow") from exc
 
     raw_bytes = base64.b64decode(img.data)
-    pil_img = Image.open(io.BytesIO(raw_bytes))
+    pil_img: Image.Image = Image.open(io.BytesIO(raw_bytes))
     original_width, original_height = pil_img.size
     opts = options or ImageResizeOptions()
 
@@ -121,7 +121,7 @@ def resize_image(img: ImageContent, options: ImageResizeOptions | None = None) -
     if scale < 1.0:
         target_width = max(1, int(original_width * scale))
         target_height = max(1, int(original_height * scale))
-        pil_img = pil_img.resize(  # type: ignore[assignment]
+        pil_img = pil_img.resize(
             (target_width, target_height),
             Image.Resampling.LANCZOS,
         )
@@ -136,7 +136,7 @@ def resize_image(img: ImageContent, options: ImageResizeOptions | None = None) -
         output_mime = "image/jpeg"
         # Ensure no alpha channel for JPEG
         if pil_img.mode in ("RGBA", "LA", "P"):
-            pil_img = pil_img.convert("RGB")  # type: ignore[assignment]
+            pil_img = pil_img.convert("RGB")
 
     def _encode(pil_image: Image.Image) -> bytes:
         buf = io.BytesIO()
@@ -164,7 +164,7 @@ def resize_image(img: ImageContent, options: ImageResizeOptions | None = None) -
             while len(encoded_bytes) > opts.max_bytes and reduction > 0.1:
                 new_w = max(1, int(target_width * reduction))
                 new_h = max(1, int(target_height * reduction))
-                temp_img = pil_img.resize(  # type: ignore[assignment]
+                temp_img = pil_img.resize(
                     (new_w, new_h),
                     Image.Resampling.LANCZOS,
                 )

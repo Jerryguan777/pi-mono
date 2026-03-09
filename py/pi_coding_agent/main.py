@@ -250,11 +250,11 @@ async def main(args: list[str]) -> None:
     extensions_result: Any = None
 
     try:
-        from pi_coding_agent.core.resource_loader import (  # type: ignore[import-untyped]
+        from pi_coding_agent.core.resource_loader import (
             DefaultResourceLoader,
             DefaultResourceLoaderOptions,
         )
-        from pi_coding_agent.core.settings_manager import SettingsManager  # type: ignore[import-untyped]
+        from pi_coding_agent.core.settings_manager import SettingsManager
 
         cwd = os.getcwd()
         agent_dir = str(get_agent_dir())

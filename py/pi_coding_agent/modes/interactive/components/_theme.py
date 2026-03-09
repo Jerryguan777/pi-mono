@@ -244,10 +244,10 @@ def get_language_from_path(file_path: str) -> str | None:
 def highlight_code(text: str, lang: str) -> list[str]:
     """Attempt syntax highlighting; fall back to plain lines on error."""
     try:
-        from pygments import highlight as pyg_highlight  # type: ignore[import-untyped]
-        from pygments.formatters import Terminal256Formatter  # type: ignore[import-untyped]
-        from pygments.lexers import get_lexer_by_name  # type: ignore[import-untyped]
-        from pygments.util import ClassNotFound  # type: ignore[import-untyped]
+        from pygments import highlight as pyg_highlight
+        from pygments.formatters import Terminal256Formatter
+        from pygments.lexers import get_lexer_by_name
+        from pygments.util import ClassNotFound
 
         try:
             lexer = get_lexer_by_name(lang, stripall=False)

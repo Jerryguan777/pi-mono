@@ -12,5 +12,9 @@ dependencies = [
 [project.scripts]
 pi = "pi_pods.cli:main"
 
+[tool.setuptools.packages.find]
+where = [".."]
+include = ["pi_pods*"]
+
 [tool.setuptools.package-data]
 pi_pods = ["scripts/*.sh"]

@@ -10,12 +10,12 @@ from __future__ import annotations
 import json
 import os
 from abc import ABC, abstractmethod
-
-import filelock
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
+
+import filelock
 
 from pi_coding_agent.core.config import CONFIG_DIR_NAME, get_agent_dir
 

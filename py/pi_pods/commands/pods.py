@@ -101,9 +101,7 @@ async def setup_pod(
     # Read via importlib.resources (works in both directory and zip installs),
     # then write to a named temp file so scp_file() gets a stable path.
     print("Copying setup script...")
-    script_content = (
-        importlib.resources.files("pi_pods") / "scripts" / "pod_setup.sh"
-    ).read_text(encoding="utf-8")
+    script_content = (importlib.resources.files("pi_pods") / "scripts" / "pod_setup.sh").read_text(encoding="utf-8")
     tmp_fd, tmp_path = tempfile.mkstemp(suffix=".sh")
     try:
         Path(tmp_path).write_text(script_content, encoding="utf-8")

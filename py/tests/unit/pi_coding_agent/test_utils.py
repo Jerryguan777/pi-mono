@@ -404,7 +404,7 @@ class TestGetToolPath:
     def test_returns_path_when_in_system(self) -> None:
         from pi_coding_agent.utils.tools_manager import get_tool_path
 
-        with patch("shutil.which", return_value="/usr/bin/rg"):
+        with patch("pathlib.Path.is_file", return_value=False), patch("shutil.which", return_value="/usr/bin/rg"):
             result = get_tool_path("rg")
         assert result == "/usr/bin/rg"
 

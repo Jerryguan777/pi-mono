@@ -240,16 +240,16 @@ __all__ = [
     "AgentSessionConfig",
     "AgentSessionEvent",
     "AgentSessionEventListener",
-    "AutoCompactionEndEvent",
-    "AutoCompactionStartEvent",
-    "AutoRetryEndEvent",
-    "AutoRetryStartEvent",
     # auth_storage
     "ApiKeyCredential",
     "AuthCredential",
     "AuthStorage",
     "AuthStorageBackend",
     "AuthStorageData",
+    "AutoCompactionEndEvent",
+    "AutoCompactionStartEvent",
+    "AutoRetryEndEvent",
+    "AutoRetryStartEvent",
     # messages
     "BashExecutionMessage",
     # bash_executor
@@ -322,6 +322,7 @@ __all__ = [
     "LoadSkillsResult",
     "LsTool",
     "MarkdownSettings",
+    "MissingSourceAction",
     "ModelChangeEntry",
     # model_registry
     "ModelOverride",

@@ -97,9 +97,9 @@ from pi_coding_agent.core import (
     FileSettingsStorage,
     GenerateBranchSummaryOptions,
     ImageSettings,
+    InitialModelResult,
     InMemoryAuthStorageBackend,
     InMemorySettingsStorage,
-    InitialModelResult,
     LabelEntry,
     LoadExtensionsResult,
     LoadSkillsResult,
@@ -243,14 +243,14 @@ __all__ = [
     # config
     "APP_NAME",
     "CONFIG_DIR_NAME",
-    "ENV_AGENT_DIR",
-    "VALID_THINKING_LEVELS",
-    "VERSION",
     # core constants
     "CURRENT_SESSION_VERSION",
     "DEFAULT_COMPACTION_SETTINGS",
     "DEFAULT_MODEL_PER_PROVIDER",
+    "ENV_AGENT_DIR",
     "SUMMARIZATION_SYSTEM_PROMPT",
+    "VALID_THINKING_LEVELS",
+    "VERSION",
     # core classes
     "AgentSession",
     "AgentSessionConfig",
