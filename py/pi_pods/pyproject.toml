@@ -4,4 +4,13 @@ version = "0.1.0"
 description = "CLI for vLLM deployments on GPU pods"
 requires-python = ">=3.12"
 license = "MIT"
-dependencies = []
+dependencies = [
+    "typer>=0.12",
+    "rich>=13.0",
+]
+
+[project.scripts]
+pi = "pi_pods.cli:main"
+
+[tool.setuptools.package-data]
+pi_pods = ["scripts/*.sh"]
