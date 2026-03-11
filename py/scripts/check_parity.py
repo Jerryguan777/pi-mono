@@ -115,10 +115,121 @@ def get_python_public_api(package_name: str) -> set[str]:
     return {name for name in dir(mod) if not name.startswith("_")}
 
 
+def _detect_stubs(package_name: str) -> list[str]:
+    """Scan Python package for methods/functions that are stubs.
+
+    Detects:
+    - Functions/methods whose body is `raise NotImplementedError(...)`
+    - Functions/methods containing "requires.*parallel task" or "stub.*TODO" markers
+    - Module-level functions whose body is only `pass` (but NOT methods,
+      because TUI component interfaces legitimately have empty invalidate/dispose/handle_input)
+
+    Returns list of "module.Class.method" or "module.function" strings.
+    """
+    import ast
+    import inspect
+
+    stubs: list[str] = []
+
+    try:
+        top_mod = importlib.import_module(package_name)
+    except ImportError:
+        return stubs
+
+    # Collect all modules in the package
+    modules_to_scan: list[tuple[str, types.ModuleType]] = [(package_name, top_mod)]
+
+    pkg_path = getattr(top_mod, "__path__", None)
+    if pkg_path:
+        import pkgutil
+
+        for _importer, modname, _ispkg in pkgutil.walk_packages(pkg_path, prefix=package_name + "."):
+            try:
+                mod = importlib.import_module(modname)
+                modules_to_scan.append((modname, mod))
+            except Exception:
+                continue
+
+    for modname, mod in modules_to_scan:
+        try:
+            source = inspect.getsource(mod)
+        except (OSError, TypeError):
+            continue
+
+        try:
+            tree = ast.parse(source)
+        except SyntaxError:
+            continue
+
+        # Build a class-parent map so we can find which class a method belongs to
+        class_of: dict[int, str] = {}  # node id -> class name
+        for cls_node in ast.walk(tree):
+            if isinstance(cls_node, ast.ClassDef):
+                for child in ast.iter_child_nodes(cls_node):
+                    class_of[id(child)] = cls_node.name
+
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+
+            func_name = node.name
+            if func_name.startswith("__") and func_name.endswith("__"):
+                continue  # skip dunder methods
+
+            class_name = class_of.get(id(node))
+            is_method = class_name is not None
+
+            # Get the meaningful body statements (skip docstrings)
+            body = node.body
+            if (
+                body
+                and isinstance(body[0], ast.Expr)
+                and isinstance(body[0].value, (ast.Constant, ast.Str))
+            ):
+                body = body[1:]  # skip docstring
+
+            if not body:
+                continue
+
+            is_stub = False
+            stub_reason = ""
+
+            # Check: body is just `raise NotImplementedError(...)`
+            if len(body) == 1 and isinstance(body[0], ast.Raise):
+                exc = body[0].exc
+                if isinstance(exc, ast.Call) and isinstance(exc.func, ast.Name):
+                    if exc.func.id == "NotImplementedError":
+                        is_stub = True
+                        stub_reason = "raises NotImplementedError"
+                elif isinstance(exc, ast.Name) and exc.id == "NotImplementedError":
+                    is_stub = True
+                    stub_reason = "raises NotImplementedError"
+
+            # Check: source contains stub markers in comments/strings
+            if not is_stub:
+                func_lines = source.splitlines()[node.lineno - 1 : node.end_lineno or node.lineno]
+                func_source = "\n".join(func_lines).lower()
+                if "requires" in func_source and "parallel task" in func_source:
+                    is_stub = True
+                    stub_reason = "contains 'requires parallel task' marker"
+                elif "stub" in func_source and "not yet implemented" in func_source:
+                    is_stub = True
+                    stub_reason = "contains stub/not-yet-implemented marker"
+
+            if is_stub:
+                if class_name:
+                    qualified = f"{modname}.{class_name}.{func_name}"
+                else:
+                    qualified = f"{modname}.{func_name}"
+                stubs.append(f"{qualified} ({stub_reason})")
+
+    return stubs
+
+
 def check_parity(ts_path: Path, python_package: str) -> dict[str, list[str]]:
     """Compare TS exports vs Python public API.
 
-    Returns a dict with keys: missing, extra, matched.
+    Returns a dict with keys: missing, extra, matched, stubs.
     """
     ts_exports = get_ts_exports(ts_path)
     py_api = get_python_public_api(python_package)
@@ -143,7 +254,10 @@ def check_parity(ts_path: Path, python_package: str) -> dict[str, list[str]]:
     matched = sorted(matched_py)
     missing = sorted(set(missing_names))
 
-    return {"missing": missing, "extra": extra, "matched": matched}
+    # Detect stub implementations
+    stubs = _detect_stubs(python_package)
+
+    return {"missing": missing, "extra": extra, "matched": matched, "stubs": stubs}
 
 
 def format_report(ts_path: str, python_package: str, result: dict[str, list[str]]) -> str:
@@ -158,6 +272,13 @@ def format_report(ts_path: str, python_package: str, result: dict[str, list[str]
         lines.append(f"### Missing ({len(result['missing'])})")
         for name in result["missing"]:
             lines.append(f"  - {name}")
+        lines.append("")
+
+    stubs = result.get("stubs", [])
+    if stubs:
+        lines.append(f"### Stubs ({len(stubs)}) -- methods exist but are not implemented")
+        for stub in stubs:
+            lines.append(f"  - {stub}")
         lines.append("")
 
     if result["extra"]:
@@ -194,14 +315,21 @@ def main() -> None:
         sys.exit(1)
 
     has_gaps = False
+    has_stubs = False
     for ts_path_str, py_pkg in pairs:
         ts_path = Path(ts_path_str)
         result = check_parity(ts_path, py_pkg)
         print(format_report(ts_path_str, py_pkg, result))
         if result["missing"]:
             has_gaps = True
+        if result.get("stubs"):
+            has_stubs = True
 
-    if has_gaps:
+    if has_stubs:
+        print("\nERROR: Stub implementations detected. These methods exist but are not implemented.", file=sys.stderr)
+        print("       Fix them before declaring the rewrite complete.", file=sys.stderr)
+
+    if has_gaps or has_stubs:
         sys.exit(1)
 
 
