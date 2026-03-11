@@ -488,9 +488,9 @@ class TestDispose:
 
 class TestCompact:
     @pytest.mark.anyio
-    async def test_compact_raises_not_implemented(self) -> None:
+    async def test_compact_raises_without_model(self) -> None:
         session = make_session()
-        with pytest.raises(NotImplementedError):
+        with pytest.raises(RuntimeError, match="No model selected"):
             await session.compact()
 
 

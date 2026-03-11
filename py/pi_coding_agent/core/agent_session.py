@@ -563,24 +563,309 @@ class AgentSession:
     async def compact(self, custom_instructions: str | None = None) -> Any:
         """Manually compact the session context.
 
-        Note: This is a stub. Full implementation requires the compaction
-        module from parallel task 3-3.
+        Disconnect from agent, run compaction pipeline, update session
+        and agent state with the compacted context.
 
         Returns:
-            CompactionResult (dict with summary, first_kept_entry_id, etc.)
+            CompactionResult with summary, first_kept_entry_id, tokens_before, details.
         """
-        raise NotImplementedError(
-            "compact() requires the compaction module from parallel task 3-3. "
-            "Import pi_coding_agent.core.compaction.compact to implement this."
+        from pi_coding_agent.core.compaction.compaction import (
+            CompactionResult,
+            compact as run_compact,
+            prepare_compaction,
         )
+        from pi_coding_agent.core.session_manager import CompactionEntry
 
-    async def _check_compaction(self, assistant_message: AssistantMessage) -> None:
+        self._disconnect_from_agent()
+        await self.abort()
+        self._compaction_abort_event = asyncio.Event()
+
+        try:
+            if not self.model:
+                raise RuntimeError("No model selected")
+
+            api_key = await self._model_registry.get_api_key(self.model)
+            if not api_key:
+                raise RuntimeError(f"No API key for {self.model.provider}")
+
+            path_entries = self._session_manager.get_branch()
+            settings = self._settings_manager.get_compaction_settings()
+
+            preparation = prepare_compaction(path_entries, settings)
+            if not preparation:
+                last_entry = path_entries[-1] if path_entries else None
+                if last_entry is not None and isinstance(last_entry, CompactionEntry):
+                    raise RuntimeError("Already compacted")
+                raise RuntimeError("Nothing to compact (session too small)")
+
+            extension_compaction: CompactionResult | None = None
+            from_extension = False
+
+            runner = self._extension_runner_ref.get("current") if self._extension_runner_ref else None
+            if runner is not None and runner.has_handlers("session_before_compact"):
+                ext_result = await runner.emit({
+                    "type": "session_before_compact",
+                    "preparation": preparation,
+                    "branch_entries": path_entries,
+                    "custom_instructions": custom_instructions,
+                    "signal": self._compaction_abort_event,
+                })
+
+                if ext_result is not None and getattr(ext_result, "cancel", False):
+                    raise RuntimeError("Compaction cancelled")
+
+                if ext_result is not None and getattr(ext_result, "compaction", None) is not None:
+                    extension_compaction = ext_result.compaction
+                    from_extension = True
+
+            if extension_compaction is not None:
+                summary = extension_compaction.summary
+                first_kept_entry_id = extension_compaction.first_kept_entry_id
+                tokens_before = extension_compaction.tokens_before
+                details = extension_compaction.details
+            else:
+                result = await run_compact(
+                    preparation,
+                    self.model,
+                    api_key,
+                    custom_instructions,
+                    self._compaction_abort_event,
+                )
+                summary = result.summary
+                first_kept_entry_id = result.first_kept_entry_id
+                tokens_before = result.tokens_before
+                details = result.details
+
+            if self._compaction_abort_event.is_set():
+                raise RuntimeError("Compaction cancelled")
+
+            self._session_manager.append_compaction(
+                summary, first_kept_entry_id, tokens_before, details, from_extension,
+            )
+            new_entries = self._session_manager.get_entries()
+            session_context = self._session_manager.build_session_context()
+            self._agent.replace_messages(session_context.messages)
+
+            # Emit session_compact extension event
+            saved = next(
+                (e for e in new_entries if isinstance(e, CompactionEntry) and e.summary == summary),
+                None,
+            )
+            if runner is not None and saved is not None:
+                with contextlib.suppress(Exception):
+                    await runner.emit({
+                        "type": "session_compact",
+                        "compaction_entry": saved,
+                        "from_extension": from_extension,
+                    })
+
+            return CompactionResult(
+                summary=summary,
+                first_kept_entry_id=first_kept_entry_id,
+                tokens_before=tokens_before,
+                details=details,
+            )
+        finally:
+            self._compaction_abort_event = None
+            self._reconnect_to_agent()
+
+    async def _check_compaction(
+        self, assistant_message: AssistantMessage, skip_aborted_check: bool = True,
+    ) -> None:
         """Check if auto-compaction is needed after an agent turn.
 
-        Note: Full implementation requires the compaction module from task 3-3.
+        Two cases:
+        1. Overflow: LLM returned context overflow error → remove error msg, compact, auto-retry
+        2. Threshold: Context over threshold → compact, NO auto-retry
+
+        Args:
+            assistant_message: The assistant message to check.
+            skip_aborted_check: If False, include aborted messages (for pre-prompt check).
         """
-        # Stub: real implementation calls shouldCompact / compact
-        pass
+        from pi_ai.utils.overflow import is_context_overflow
+        from pi_coding_agent.core.compaction.compaction import (
+            calculate_context_tokens,
+            should_compact,
+        )
+        from pi_coding_agent.core.session_manager import get_latest_compaction_entry
+
+        settings = self._settings_manager.get_compaction_settings()
+        if not settings.enabled:
+            return
+
+        # Skip if message was aborted (user cancelled) - unless skip_aborted_check is False
+        if skip_aborted_check and getattr(assistant_message, "stop_reason", None) == "aborted":
+            return
+
+        context_window = getattr(self.model, "context_window", 0) or 0
+
+        # Skip overflow check if the message came from a different model
+        same_model = (
+            self.model is not None
+            and getattr(assistant_message, "provider", "") == self.model.provider
+            and getattr(assistant_message, "model", "") == self.model.id
+        )
+
+        # Skip overflow check if the error is from before a compaction in the current path
+        compaction_entry = get_latest_compaction_entry(self._session_manager.get_branch())
+        error_is_from_before_compaction = (
+            compaction_entry is not None
+            and getattr(assistant_message, "timestamp", 0) < compaction_entry.timestamp
+        )
+
+        # Case 1: Overflow - LLM returned context overflow error
+        if same_model and not error_is_from_before_compaction and is_context_overflow(assistant_message, context_window):
+            messages = self._agent.state.messages
+            if messages and messages[-1].role == "assistant":
+                self._agent.replace_messages(messages[:-1])
+            await self._run_auto_compaction("overflow", True)
+            return
+
+        # Case 2: Threshold - turn succeeded but context is getting large
+        if getattr(assistant_message, "stop_reason", None) == "error":
+            return
+
+        context_tokens = calculate_context_tokens(assistant_message.usage)
+        if should_compact(context_tokens, context_window, settings):
+            await self._run_auto_compaction("threshold", False)
+
+    async def _run_auto_compaction(
+        self, reason: Literal["overflow", "threshold"], will_retry: bool,
+    ) -> None:
+        """Run auto-compaction with events."""
+        from pi_coding_agent.core.compaction.compaction import (
+            CompactionResult,
+            compact as run_compact,
+            prepare_compaction,
+        )
+        from pi_coding_agent.core.session_manager import CompactionEntry
+
+        settings = self._settings_manager.get_compaction_settings()
+
+        self._emit(AutoCompactionStartEvent(reason=reason))
+        self._auto_compaction_abort_event = asyncio.Event()
+
+        try:
+            if not self.model:
+                self._emit(AutoCompactionEndEvent(result=None, aborted=False, will_retry=False))
+                return
+
+            api_key = await self._model_registry.get_api_key(self.model)
+            if not api_key:
+                self._emit(AutoCompactionEndEvent(result=None, aborted=False, will_retry=False))
+                return
+
+            path_entries = self._session_manager.get_branch()
+
+            preparation = prepare_compaction(path_entries, settings)
+            if not preparation:
+                self._emit(AutoCompactionEndEvent(result=None, aborted=False, will_retry=False))
+                return
+
+            extension_compaction: CompactionResult | None = None
+            from_extension = False
+
+            runner = self._extension_runner_ref.get("current") if self._extension_runner_ref else None
+            if runner is not None and runner.has_handlers("session_before_compact"):
+                ext_result = await runner.emit({
+                    "type": "session_before_compact",
+                    "preparation": preparation,
+                    "branch_entries": path_entries,
+                    "custom_instructions": None,
+                    "signal": self._auto_compaction_abort_event,
+                })
+
+                if ext_result is not None and getattr(ext_result, "cancel", False):
+                    self._emit(AutoCompactionEndEvent(result=None, aborted=True, will_retry=False))
+                    return
+
+                if ext_result is not None and getattr(ext_result, "compaction", None) is not None:
+                    extension_compaction = ext_result.compaction
+                    from_extension = True
+
+            if extension_compaction is not None:
+                summary = extension_compaction.summary
+                first_kept_entry_id = extension_compaction.first_kept_entry_id
+                tokens_before = extension_compaction.tokens_before
+                details = extension_compaction.details
+            else:
+                compact_result = await run_compact(
+                    preparation,
+                    self.model,
+                    api_key,
+                    None,
+                    self._auto_compaction_abort_event,
+                )
+                summary = compact_result.summary
+                first_kept_entry_id = compact_result.first_kept_entry_id
+                tokens_before = compact_result.tokens_before
+                details = compact_result.details
+
+            if self._auto_compaction_abort_event.is_set():
+                self._emit(AutoCompactionEndEvent(result=None, aborted=True, will_retry=False))
+                return
+
+            self._session_manager.append_compaction(
+                summary, first_kept_entry_id, tokens_before, details, from_extension,
+            )
+            new_entries = self._session_manager.get_entries()
+            session_context = self._session_manager.build_session_context()
+            self._agent.replace_messages(session_context.messages)
+
+            # Emit session_compact extension event
+            saved = next(
+                (e for e in new_entries if isinstance(e, CompactionEntry) and e.summary == summary),
+                None,
+            )
+            if runner is not None and saved is not None:
+                with contextlib.suppress(Exception):
+                    await runner.emit({
+                        "type": "session_compact",
+                        "compaction_entry": saved,
+                        "from_extension": from_extension,
+                    })
+
+            result = CompactionResult(
+                summary=summary,
+                first_kept_entry_id=first_kept_entry_id,
+                tokens_before=tokens_before,
+                details=details,
+            )
+            self._emit(AutoCompactionEndEvent(result=result, aborted=False, will_retry=will_retry))
+
+            if will_retry:
+                messages = self._agent.state.messages
+                last_msg = messages[-1] if messages else None
+                if last_msg is not None and last_msg.role == "assistant":
+                    if getattr(last_msg, "stop_reason", "") == "error":
+                        self._agent.replace_messages(messages[:-1])
+
+                async def _retry() -> None:
+                    await asyncio.sleep(0.1)
+                    with contextlib.suppress(Exception):
+                        await self._agent.continue_()
+
+                asyncio.ensure_future(_retry())
+            elif hasattr(self._agent, "has_queued_messages") and self._agent.has_queued_messages():
+                async def _continue_queued() -> None:
+                    await asyncio.sleep(0.1)
+                    with contextlib.suppress(Exception):
+                        await self._agent.continue_()
+
+                asyncio.ensure_future(_continue_queued())
+
+        except Exception as exc:
+            error_message = str(exc) if str(exc) else "compaction failed"
+            msg = (
+                f"Context overflow recovery failed: {error_message}"
+                if reason == "overflow"
+                else f"Auto-compaction failed: {error_message}"
+            )
+            self._emit(AutoCompactionEndEvent(
+                result=None, aborted=False, will_retry=False, error_message=msg,
+            ))
+        finally:
+            self._auto_compaction_abort_event = None
 
     # =========================================================================
     # Bash execution
