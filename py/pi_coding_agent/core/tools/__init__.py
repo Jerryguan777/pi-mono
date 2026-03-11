@@ -172,8 +172,64 @@ def create_tool_html_renderer(deps: dict[str, Any]) -> dict[str, Any]:
 
     The renderer looks up tool definitions and invokes their renderCall/renderResult
     methods, converting the resulting TUI Component output (ANSI) to HTML.
+
+    Args:
+        deps: Dict with keys: get_tool_definition (callable), theme, width (default 100).
+
+    Returns:
+        Dict with render_call(tool_name, args) and render_result(tool_name, result, details, is_error).
     """
-    raise NotImplementedError("TODO")
+    from pi_coding_agent.core.export_html.ansi_to_html import ansi_lines_to_html
+
+    get_tool_definition = deps.get("get_tool_definition")
+    theme = deps.get("theme")
+    width: int = deps.get("width", 100)
+
+    def render_call(tool_name: str, args: Any) -> str | None:
+        try:
+            if get_tool_definition is None:
+                return None
+            tool_def = get_tool_definition(tool_name)
+            if tool_def is None:
+                return None
+            render_call_fn = getattr(tool_def, "render_call", None)
+            if render_call_fn is None:
+                return None
+            component = render_call_fn(args, theme)
+            lines: list[str] = component.render(width)
+            return ansi_lines_to_html(lines)
+        except Exception:
+            return None
+
+    def render_result(
+        tool_name: str,
+        result: list[dict[str, Any]],
+        details: Any,
+        is_error: bool,
+    ) -> str | None:
+        try:
+            if get_tool_definition is None:
+                return None
+            tool_def = get_tool_definition(tool_name)
+            if tool_def is None:
+                return None
+            render_result_fn = getattr(tool_def, "render_result", None)
+            if render_result_fn is None:
+                return None
+            agent_tool_result = {
+                "content": result,
+                "details": details,
+                "isError": is_error,
+            }
+            component = render_result_fn(
+                agent_tool_result, {"expanded": True, "isPartial": False}, theme,
+            )
+            lines: list[str] = component.render(width)
+            return ansi_lines_to_html(lines)
+        except Exception:
+            return None
+
+    return {"render_call": render_call, "render_result": render_result}
 
 
 def create_coding_tools(cwd: str, **kwargs: Any) -> list[AgentTool]:
