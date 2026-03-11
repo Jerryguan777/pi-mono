@@ -154,15 +154,74 @@ async def _handle_package_command(args: list[str]) -> bool:
         )
         sys.exit(1)
 
-    # Package manager operations are stubs
-    if command == "install":
-        print(f"Package install not yet implemented. Source: {source}")
-    elif command == "remove":
-        print(f"Package remove not yet implemented. Source: {source}")
-    elif command == "update":
-        print(f"Package update not yet implemented. Source: {source}")
-    elif command == "list":
-        print("Package list not yet implemented.")
+    from pi_coding_agent.core.package_manager import DefaultPackageManager, _PackageManagerOptions
+
+    cwd = os.getcwd()
+    agent_dir = str(get_agent_dir())
+    settings_manager = SettingsManager.create(Path(cwd), Path(agent_dir))
+    pm = DefaultPackageManager(_PackageManagerOptions(cwd=cwd, agent_dir=agent_dir))
+
+    pm.set_progress_callback(lambda event: (
+        print(getattr(event, "message", ""), flush=True)
+        if getattr(event, "type", "") == "start"
+        else None
+    ))
+
+    try:
+        if command == "install":
+            assert source is not None
+            await pm.install(source, {"local": options["local"]})
+            pm.add_source_to_settings(source, {"local": options["local"]})
+            print(f"Installed {source}")
+
+        elif command == "remove":
+            assert source is not None
+            await pm.remove(source, {"local": options["local"]})
+            removed = pm.remove_source_from_settings(source, {"local": options["local"]})
+            if not removed:
+                print(f"No matching package found for {source}", file=sys.stderr)
+                sys.exit(1)
+            print(f"Removed {source}")
+
+        elif command == "list":
+            global_packages = list(settings_manager._global_settings.packages or [])
+            project_packages = list(settings_manager._project_settings.packages or [])
+
+            if not global_packages and not project_packages:
+                print("No packages installed.")
+                return True
+
+            def _format_pkg(pkg: Any, scope: str) -> None:
+                pkg_source = pkg if isinstance(pkg, str) else getattr(pkg, "source", str(pkg))
+                filtered = not isinstance(pkg, str)
+                display = f"{pkg_source} (filtered)" if filtered else pkg_source
+                print(f"  {display}")
+                path = pm.get_installed_path(pkg_source, scope)  # type: ignore[arg-type]
+                if path:
+                    print(f"    {path}")
+
+            if global_packages:
+                print("User packages:")
+                for pkg in global_packages:
+                    _format_pkg(pkg, "user")
+
+            if project_packages:
+                if global_packages:
+                    print()
+                print("Project packages:")
+                for pkg in project_packages:
+                    _format_pkg(pkg, "project")
+
+        elif command == "update":
+            await pm.update(source)
+            if source:
+                print(f"Updated {source}")
+            else:
+                print("Updated packages")
+
+    except Exception as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
 
     return True
 

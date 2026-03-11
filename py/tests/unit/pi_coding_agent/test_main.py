@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -183,31 +184,108 @@ async def test_handle_package_command_invalid_option() -> None:
 
 
 @pytest.mark.asyncio
-async def test_handle_package_command_install_stub(capsys: pytest.CaptureFixture[str]) -> None:
+async def test_handle_package_command_install(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    import sys
+    from unittest.mock import AsyncMock, MagicMock
+
+    main_mod = sys.modules["pi_coding_agent.main"]
+
+    mock_pm = MagicMock()
+    mock_pm.install = AsyncMock()
+    mock_pm.add_source_to_settings = MagicMock(return_value=True)
+    mock_pm.set_progress_callback = MagicMock()
+
+    monkeypatch.setattr(
+        "pi_coding_agent.core.package_manager.DefaultPackageManager", lambda opts: mock_pm,
+    )
+    monkeypatch.setattr(main_mod, "SettingsManager", MagicMock(create=MagicMock(return_value=MagicMock())))
+    monkeypatch.chdir(tmp_path)
+
     result = await _handle_package_command(["install", "npm:@foo/bar"])
     assert result is True
+    mock_pm.install.assert_awaited_once()
     captured = capsys.readouterr()
-    assert "not yet implemented" in captured.out.lower() or "npm:@foo/bar" in captured.out
+    assert "Installed" in captured.out
 
 
 @pytest.mark.asyncio
-async def test_handle_package_command_list_stub(capsys: pytest.CaptureFixture[str]) -> None:
+async def test_handle_package_command_list_empty(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    import sys
+    from unittest.mock import MagicMock
+
+    main_mod = sys.modules["pi_coding_agent.main"]
+
+    mock_sm = MagicMock()
+    mock_sm._global_settings = MagicMock()
+    mock_sm._global_settings.packages = []
+    mock_sm._project_settings = MagicMock()
+    mock_sm._project_settings.packages = []
+
+    monkeypatch.setattr(
+        "pi_coding_agent.core.package_manager.DefaultPackageManager", lambda opts: MagicMock(),
+    )
+    monkeypatch.setattr(main_mod, "SettingsManager", MagicMock(create=MagicMock(return_value=mock_sm)))
+    monkeypatch.chdir(tmp_path)
+
     result = await _handle_package_command(["list"])
     assert result is True
     captured = capsys.readouterr()
-    assert "not yet implemented" in captured.out.lower()
+    assert "No packages installed" in captured.out
 
 
 @pytest.mark.asyncio
-async def test_handle_package_command_update_stub(capsys: pytest.CaptureFixture[str]) -> None:
+async def test_handle_package_command_update(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    import sys
+    from unittest.mock import AsyncMock, MagicMock
+
+    main_mod = sys.modules["pi_coding_agent.main"]
+
+    mock_pm = MagicMock()
+    mock_pm.update = AsyncMock()
+    mock_pm.set_progress_callback = MagicMock()
+
+    monkeypatch.setattr(
+        "pi_coding_agent.core.package_manager.DefaultPackageManager", lambda opts: mock_pm,
+    )
+    monkeypatch.setattr(main_mod, "SettingsManager", MagicMock(create=MagicMock(return_value=MagicMock())))
+    monkeypatch.chdir(tmp_path)
+
     result = await _handle_package_command(["update"])
     assert result is True
+    mock_pm.update.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_handle_package_command_remove_stub(capsys: pytest.CaptureFixture[str]) -> None:
+async def test_handle_package_command_remove(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    import sys
+    from unittest.mock import AsyncMock, MagicMock
+
+    main_mod = sys.modules["pi_coding_agent.main"]
+
+    mock_pm = MagicMock()
+    mock_pm.remove = AsyncMock()
+    mock_pm.remove_source_from_settings = MagicMock(return_value=True)
+    mock_pm.set_progress_callback = MagicMock()
+
+    monkeypatch.setattr(
+        "pi_coding_agent.core.package_manager.DefaultPackageManager", lambda opts: mock_pm,
+    )
+    monkeypatch.setattr(main_mod, "SettingsManager", MagicMock(create=MagicMock(return_value=MagicMock())))
+    monkeypatch.chdir(tmp_path)
+
     result = await _handle_package_command(["remove", "npm:@foo/bar"])
     assert result is True
+    mock_pm.remove.assert_awaited_once()
+    captured = capsys.readouterr()
+    assert "Removed" in captured.out
 
 
 # ---------------------------------------------------------------------------
